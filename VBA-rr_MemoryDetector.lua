@@ -27,7 +27,7 @@ function main()
 			registerStructWrite(base, size, detectWrite)
 		end
 		if detectReads then -- TODO: change to detectRead?
-			registerStructWrite(base, size, detectWrite)
+			registerStructRead(base, size, detectWrite)
 		end
 		vba.frameadvance()
 	end
