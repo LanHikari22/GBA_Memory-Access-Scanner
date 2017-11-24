@@ -3,12 +3,23 @@
 base = 0x02001B80
 -- The size of the memory block (ex. 0x22)
 size = 0x84
+-- In case the block of memory (or struct) has a name. Useful for other programs
+name = "s_02001B80"
+
+-- Optional Setttings ------------------------------------------------------------
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
-detectReads = true
+detectReads = false
+-- Number of entries in one line
+entriesPerLine = 3
+-- Enables detect notification to VBA screen
+printToScreen = true
+--[[ This is enabled so that meta information about the memblock is displayed at
+     start. This could be useful for other software operating on the output of this
+	 program. ]] 
+metaEnabled = true
 
-
--- Constants ---------------------------------------------------------------------
+-- Constants (wannabe, please don't change :'( )-----------------------------------
 -- Magic to identify instructions
 IMM = 	  0x6000 -- 0b0110_0000_0000_0000
 IMM_H =   0x8000 -- 0b1000_0000_0000_0000
@@ -18,10 +29,17 @@ PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
 
 
 -- Globals ----------------------------------------------------------------------
+-- Memory accesses detected for write
 STR_entries = {}
+-- Used to print with no endline. For some reason, I can't do io.write(). 
+line = ''
 
 
 function main()
+	if metaEnabled then
+		print(string.format("name=%s size=0x%X", name, size))
+	end
+	-- Detection mode on!
 	while true do
 		if detectWrites then
 			registerStructWrite(base, size, detectWrite)
@@ -67,8 +85,15 @@ function detectWrite()
 		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "?"
 
 		local msg = string.format("%s::%08X %s(0x%02X)", funcAddr, pc, utype_str, offset)
-		vba.message(msg)
-		print(msg)
+		if printToScreen then
+			vba.message(msg)
+		end
+		local endline = true
+		if #STR_entries % entriesPerLine == 0 then
+			printSameLine(msg..", ", endline)
+		else
+			printSameLine(msg..", ", not endline)
+		end
 	end
     -- vba.pause()
 end
@@ -269,6 +294,22 @@ function authInstruction(inst, magic, opSize)
 	end
 	return output
 end
+
+--[[
+	This is sort of a hack. io.write() is not available, so this is an implementation of it
+	with print.
+	@param str 		string to add to line (and perhaps print)
+	@param newLine	if true, the string is appended and then the line is printed. otherwise,
+					the string is only appended to the line
+]]
+function printSameLine(str, newLine)
+	line = line..str
+	if newLine then
+		print(line)
+		line = ''
+	end
+end
+
 
 --[[
  Returns whether the value <value> is in the array <arr>
