@@ -5,11 +5,16 @@
 This program automates the process of setting watchpoints to detect functions accessing a structure or block of memory.
 It is capable of presenting all detected functions that write and read from a block of memory or structure.
 It detects access types (ldr having a type of 32, strh having a type of 16, ldrb having a type of 8, etc) 
-and access offsets (str r0, [r5, 0x35] 0x35, being the offset
+and access offsets (str r0, [r5, 0x35] 0x35, being the offset)
 
 Through detected access types and offsets, the program can generate a typedef structure template for the structure itself.
 However, correctly estimating the size of a structure is very critical for the generation of the template.
 Underestimating is OK, but overestimating is bad.
+
+Sometimes, the game may access a memory location inconsistently. This causes problems in the generation
+of a structure template, which false structure padding. In such a case, all relevent entries are marked as
+CONFLICT in the structure template output. By fixing these conflicts manually (by choosing only one
+and removing the other duplicates), the template may be input into the StructPadder module to fix the padding.
 
 <b>[ Protocol ------------------------------]</b>
 
@@ -35,6 +40,13 @@ If it detects a pop {..., pc} first, it indicates that the function address is u
   2b. (By default) Press 'P' after you're done to make sure all memory access entries have been outputted.
 3. Copy the output of the lua script into the file "input".
 4. Run the MemoryAccesProtocol.py module to generate a structure template in stdout.
+
+In case the structure template containts CONFLICTS:
+1. Manually go through each conflict, and remove duplicates 
+(structure members of the same location yet different types).
+2. Remove the tag " CONFLICT" from the entry. so that the only comment is "// loc=0x22" for example.
+3. Copy the structure template and put it in the "input" file.
+4. Run the StructPadder.py module to get correct padding.
 
 <b>[ Dependencies ------------------------------]</b>
 1. VBA-rr
