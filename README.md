@@ -1,6 +1,7 @@
 # GBA_Memory-Access-Scanner
 
-[ Description ---------------------------]
+<b>[ Description ---------------------------]</b>
+
 This program automates the process of setting watchpoints to detect functions accessing a structure or block of memory.
 It is capable of presenting all detected functions that write and read from a block of memory or structure.
 It detects access types (ldr having a type of 32, strh having a type of 16, ldrb having a type of 8, etc) 
@@ -10,7 +11,8 @@ Through detected access types and offsets, the program can generate a typedef st
 However, correctly estimating the size of a structure is very critical for the generation of the template.
 Underestimating is OK, but overestimating is bad.
 
-[ Protocol ------------------------------]
+<b>[ Protocol ------------------------------]</b>
+
 Setting up and running the MemoryAccessDetector.lua in VBA-rr and doing relevent actions to the structure in game
 should generate output that looks like this:
 ```
@@ -20,9 +22,11 @@ name=s_02001B80, size=0x84
 ```
 The first line contains meta information important to the MemoryAccessProtocol module.
 The next lines contain a repeating pattern of entries that describe a memory access.
-The format is: <function_Address>::< Memory_Access_Address> u<Type>(<Offset>)
+The format is: <function_Address>::< Memory_Access_Address> u<type_of_access>(<Offset_of_access>)
+The program attempts to find the function address by searching for a push {..., lr} somewhere above.
+If it detects a pop {..., pc} first, it indicates that the function address is unkown by placing a  '?' in its location.
 
-[ Usage ----------------------------------]
+<b>[ Usage ----------------------------------]</b>
 1. Configure the MemoryAccessDetector.lua file by 
   1a. setting the base address and the size, and name of the structure.
   1b. setting whether to scan on reads (LDRs) or writes (STRs) or both (or neither, oh well).
@@ -32,7 +36,7 @@ The format is: <function_Address>::< Memory_Access_Address> u<Type>(<Offset>)
 3. Copy the output of the lua script into the file "input".
 4. Run the MemoryAccesProtocol.py module to generate a structure template in stdout.
 
-[ Dependencies ------------------------------]
+<b>[ Dependencies ------------------------------]</b>
 1. VBA-rr
 2. Python3
 3. A GBA ROM to scan
