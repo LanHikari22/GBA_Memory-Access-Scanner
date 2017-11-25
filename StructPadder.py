@@ -180,7 +180,6 @@ if __name__ == "__main__":
         tempStructSize, maxLen = handleLineParsing(entries, line, maxLen)
         if tempStructSize != 0:
             structSize = tempStructSize
-    print(structSize)
     entries = sorted(entries,key=compareLocations, reverse=False)
     pad(entries, structSize)
     output(entries, maxLen, structSize)
