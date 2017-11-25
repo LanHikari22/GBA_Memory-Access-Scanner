@@ -64,13 +64,15 @@ class MemoryAccessProtocol:
     def generate_member_entries(self):
         self._SMEntries = []
         for MAEntry in self._MAEntries:
-            SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%X" % MAEntry.offset,
+            SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X" % MAEntry.offset,
                                                 location= MAEntry.offset, otherContent='')
             self._SMEntries.append(SMEntry)
         # All duplicated of the same type are removed
         self.remove_duplicates()
         # there could be duplicates... with different types... mark them
-        self.mark_duplicates()
+        self.mark_loc_duplicates()
+        # Now to pad. Things will go wrong if there are location duplicates.
+        StructPadder.pad(self._SMEntries, self.size)
 
     def no_SMEntry_duplicate_in(self, newSMEntries, SMEntry):
         output = True
@@ -91,12 +93,22 @@ class MemoryAccessProtocol:
 
 
 
-    def mark_duplicates(self):
-        self._SMEntries = sorted(self._SMEntries, key=StructPadder.compareLocations, reverse=False)
-        pass
+    def mark_loc_duplicates(self):
+        # first, sort by location and by type...
+        self._SMEntries = sorted(self._SMEntries, key= lambda x: (x.location, x.size), reverse=False)
+        # mark all location duplicates as CONFLICT
+        for i in range(len(self._SMEntries)):
+            if self._SMEntries[i].otherContent != " CONFLICT": # " CONFLICT" b/c spaces are included after loc=0x%X
+                for j in range(i+1, len(self._SMEntries)):
+                    if self._SMEntries[i].location == self._SMEntries[j].location:
+                        if self._SMEntries[i].otherContent == '': self._SMEntries[i].otherContent = " CONFLICT"
+                        self._SMEntries[j].otherContent = " CONFLICT"
 
     def output_struct_template(self):
-        pass
+        print('typedef struct{')
+        maxLen = len('uint32_t unk_FFF     ')
+        StructPadder.output(self._SMEntries,maxLen,self.size)
+        print('\n}%s;' % self.name)
 
 
 

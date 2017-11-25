@@ -114,7 +114,7 @@ def pad(entries, structSize):
         # add a pad if needed
         if padAmount != 0:
             entry = StructMember(_type="uint8_t", name="pad_%X[0x%X];" % (curr.location + curr.size // 8, padAmount),
-                                 location="0x%X" % (curr.location + curr.size//8), otherContent = '')
+                                 location=(curr.location + curr.size//8), otherContent = '')
             entries.insert(i+1, entry)
         # advance!
         i += 1

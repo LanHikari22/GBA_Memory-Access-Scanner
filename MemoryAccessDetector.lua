@@ -7,7 +7,7 @@ size = 0x84
 name = "s_02001B80"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
-detectReads = false
+detectReads = true
 
 -- Optional Setttings ------------------------------------------------------------
 --[[ Number of entries in one line. A line is automatically printed when it has
