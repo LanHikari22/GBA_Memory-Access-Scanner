@@ -12,7 +12,7 @@ However, correctly estimating the size of a structure is very critical for the g
 Underestimating is OK, but overestimating is bad.
 
 Sometimes, the game may access a memory location inconsistently. This causes problems in the generation
-of a structure template, which false structure padding. In such a case, all relevent entries are marked as
+of a structure template, which generates false structure padding. In such a case, all relevent entries are marked as
 CONFLICT in the structure template output. By fixing these conflicts manually (by choosing only one
 and removing the other duplicates), the template may be input into the StructPadder module to fix the padding.
 
