@@ -45,7 +45,8 @@ In case the structure template containts CONFLICTS:
 1. Manually go through each conflict, and remove duplicates 
 (structure members of the same location yet different types).
 2. (optional): Remove the tag " CONFLICT" from the entry. so that the only comment is "// loc=0x22" for example.
-3. Copy the structure template and put it in the "input" file.
+3. Copy the content of the template and put it in the "input" file. 
+    (minus the "typdef struct{" lines and "}structName;" lines)
 4. Run the StructPadder.py module to get correct padding.
 
 <b>[ Dependencies ------------------------------]</b>
