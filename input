@@ -1,38 +1,30 @@
-	void *unk_00;    // loc=0x0
-	void *unk_04;    // loc=0x4
-	void *unk_08;    // loc=0x8
-	void *unk_0C;    // loc=0xC
-	void *unk_10;    // loc=0x10
-	void *unk_14;    // loc=0x14
-	void *unk_18;    // loc=0x18
-	void *unk_1C;    // loc=0x1C
-	void *unk_20;    // loc=0x20
-	void *unk_24;    // loc=0x24
-	void *unk_28;    // loc=0x28
-	void *unk_2C;    // loc=0x2C
-	void *unk_30;    // loc=0x30
-	void *unk_34;    // loc=0x34
-	void *unk_38;    // loc=0x38
-	void *unk_3C;    // loc=0x3C
-	void *unk_40;    // loc=0x40
-	void *unk_44;    // loc=0x44
-	void *unk_48;    // loc=0x48
-	void *unk_4C;    // loc=0x4C
-	void *unk_50;    // loc=0x50
-	void *unk_54;    // loc=0x54
-	void *unk_58;    // loc=0x58
-	void *unk_5C;    // loc=0x5C
-	void *unk_60;    // loc=0x60
-	void *unk_64;    // loc=0x64
-	void *unk_68;    // loc=0x68
-	void *unk_6C;    // loc=0x6C
-	void *unk_70;    // loc=0x70
-	void *unk_74;    // loc=0x74
-	void *unk_78;    // loc=0x78
-	void *unk_7C;    // loc=0x7C
-	void *unk_80;    // loc=0x80
-	void *unk_84;    // loc=0x84
-	void *unk_88;    // loc=0x88
-	void *unk_8C;    // loc=0x8C
-	uint32_t unk_90; // loc=0x90
-		uint8_t pad_94[0x-1]; // loc=0x94
+name=s_02001B80 size=0x84
+A: (Test.)
+08005268::08005274 u8(0x0E), 0809E880::0809E888 u8(0x11), ?::0809F454 u8(0x0E), 
+0809EF18::0809EF96 u8(0x11), 
+?::08001082 u32(0x24), ?::08001086 u32(0x28), 
+?::0800108A u32(0x2C), ?::0800108E u32(0x30), 08005AF4::08005B66 u8(0x00),
+B: (Please only parse relevent entries... Thank you.
+0812149C::081214B8 u16(0x0C), 080014EC::080014F4 u32(0x00), ?::080010C2 u8(0x01), 
+08121504::08121514 u8(0x00), 081214E4::081214F0 u8(0x16), ?::08001176 u8(0x09), 
+?::080051BE u8(0x15), ?::080051C0 u8(0x0E), ?::080051C2 u8(0x03), 
+?::080051C4 u32(0x68), 0809F59C::0809F5AE u32(0x18), 0804DD14::0804DD6A u32(0x64), 
+?::08005250 u8(0x16), ?::08005254 u8(0x17), ?::08005260 u8(0x00), 
+0809E7A8::0809E804 u32(0x18), 0809E7A8::0809E848 u8(0x10), 08005462::080054F2 u8(0x00), 
+08005462::080054F6 u8(0x0E), ?::0809F45A u8(0x03), 0809F438::0809F448 u8(0x10), 
+0809EC96::0809ECC2 u8(0x10), 08005BC8::08005BD4 u32(0x1C), 08005BC8::08005BE6 u16(0x0C), 
+08005BC8::08005BF2 u8(0x00), 08000784::0800079A u8(0x0F), 0800531C::08005342 u8(0x00), 
+?::0800A038 u8(0x0A), ?::0800A02E u8(0x0A), 080005D4::080005E0 u8(0x0F),
+C: (Yeah. That's all you're getting out of the lua script.)
+0800825A::080082D2 u8(0x14), 08007CA0::08007E3A u8(0x0A), 08005360::0800536A u8(0x00),
+08035D98::08035DA4 u8(0x16), 08035D98::08035DAC u8(0x17), 08030A60::08030A6C u32(0x20), 
+0809ED10::0809ED20 u8(0x10), 0804B090::0804B0A4 u16(0x0C), ?::08005D6A u32(0x24), 
+?::08005D6E u32(0x28), ?::08005D72 u32(0x2C), ?::08005D76 u32(0x30), 
+?::08005D7A u8(0x00), 08005F14::08005F20 u8(0x00), 0803423C::08034258 u8(0x16),
+Default: (Don't ask me why rhe default is in the end. But it does not matter.)
+08005C04::08005C0C u32(0x20), 08005C04::08005C6E u32(0x00), 08005C04::08005C70 u32(0x04), 
+08005C04::08005C72 u32(0x08), 08005C04::08005C74 u32(0x0C), 08005C04::08005C7E u32(0x10), 
+08005C04::08005CB8 u32(0x24), 08005C04::08005CBA u32(0x28), 08005C04::08005CBC u32(0x2C), 
+08005C04::08005CBE u32(0x30), 08005C04::08005CC8 u8(0x00), 08005C04::08005CCC u8(0x0D), 
+08005C04::08005CD2 u8(0x0C), 08005C04::08005CD4 u8(0x04), 08005C04::08005CD6 u8(0x05), 
+08000FAC::08000FD0 u32(0x1C), 080342EC::08034304 u8(0x16), 080342EC::08034308 u8(0x17),

@@ -1,3 +1,8 @@
+##
+# Author: Lan
+# Description: This module's purpose is to pad incomplete structures so that they are usable. It also sorts the
+# structure's members into correct order by consequence.
+##
 import re
 POINTER_SIZE = 32 # size of a pointer in ARM7TDMI
 
@@ -6,7 +11,7 @@ POINTER_SIZE = 32 # size of a pointer in ARM7TDMI
 # "uint8_t someMember; // loc=0x04"
 # It must consist of a type, name, and a location in the comments. Those propreties are defined in this class.
 ##
-class Entry:
+class StructMember:
     size: int          # Size of entry member. 8 for uint8_t, 32 for uint32_t, 32 for BANANA*, etc.
     type: str          # The first string in the entry for output reconstruction May include a star.
     name: str          # The name of the member.  May include a star: BANANA *b;
@@ -17,15 +22,18 @@ class Entry:
     # Initiates the entry with a type, name, and location.
     # This is parted from strings passed in that are found in the input file.
     # If the entry is a POINTER, its type is still passed in but its size is automatically set to POINTER_SIZE
+    # @param _type This is the type of the member, ex. (uint8_t) or (longSword*)
+    # @param name The name of the member. If it contains *, the member is regarded as a pointer, like _type.
+    # @param location
     ##
-    def __init__(self, type, name, location, otherContent):
-        self.type = type
-        if('*' in name or '*' in type):
+    def __init__(self, _type: str, name: str, location: int, otherContent: str):
+        self.type = _type
+        if('*' in name or '*' in _type):
             self.size = POINTER_SIZE
         else:
-            self.size = int(re.search(r"\d+", type).group())
+            self.size = int(re.search(r"\d+", _type).group()) # finding size in uint<size>_t
         self.name = name
-        self.location = int(location, 16)
+        self.location = location
         self.otherContent = otherContent
 
 ##
@@ -66,7 +74,7 @@ def parse(line: str):
         # determine other content after args[3]
         extrContIndex = line.index(args[3]) + len(args[3])
         # construct entry. If there's extra text, there's a new line. Don't include that.
-        entry = Entry(args[0],args[1],args[3][4:], line[extrContIndex:-1])
+        entry = StructMember(args[0], args[1], int(args[3][4:], 16), line[extrContIndex:-1])
 
     return [entry, structSize]
 
@@ -105,11 +113,28 @@ def pad(entries, structSize):
             if structSize == 0: padAmount = 0
         # add a pad if needed
         if padAmount != 0:
-            entry = Entry(type="uint8_t", name="pad_%X[0x%X];" % (curr.location + curr.size//8, padAmount),
-                          location="0x%X" % (curr.location + curr.size//8), otherContent = '')
+            entry = StructMember(_type="uint8_t", name="pad_%X[0x%X];" % (curr.location + curr.size // 8, padAmount),
+                                 location="0x%X" % (curr.location + curr.size//8), otherContent = '')
             entries.insert(i+1, entry)
         # advance!
         i += 1
+
+##
+# Handles the parsing of an entry line or a line containing size. Other unrelated lines are ignored
+# by the parser. The structSize output is most of the time zero until the size is actually parsed, therefore
+# it should only be recorded when it's none-zero. maxLen is needed to go into this function again to compute
+# for padding.
+##
+def handleLineParsing(entries, line, maxLen):
+    maxLen = computeMaxLen(maxLen, line)
+    structSize = 0
+    parserOutput = parse(str(line))
+    if parserOutput[0]:
+        entries.append(parserOutput[0])
+    if parserOutput[1] != 0:
+        structSize = parserOutput[1]
+    return structSize, maxLen
+
 
 ##
 # Outputs the given entries, and the struct size in the end in a fashionable fashion.
@@ -131,6 +156,9 @@ def output(entries, maxLen, structSize):
     if structSize != 0:
         print("\t// size=0x%X" % structSize, end='')
 
+
+
+
 ##
 # This program takes in member definitions for a structure, and applies pads as appropriate so that the structure
 # is usable. All previous pads are recompiled when this program is run on the input.
@@ -144,17 +172,15 @@ def output(entries, maxLen, structSize):
 if __name__ == "__main__":
     inputFile = open("input", "r")
     line = '\0'
-    entries = []
     structSize = 0
+    entries = []
     maxLen = 0
     while line != '':
         line = inputFile.readline()
-        maxLen = computeMaxLen(maxLen, line)
-        parserOutput = parse(str(line))
-        if parserOutput[0]:
-            entries.append(parserOutput[0])
-        if parserOutput[1] != 0:
-            structSize = parserOutput[1]
+        tempStructSize, maxLen = handleLineParsing(entries, line, maxLen)
+        if tempStructSize != 0:
+            structSize = tempStructSize
+    print(structSize)
     entries = sorted(entries,key=compareLocations, reverse=False)
     pad(entries, structSize)
     output(entries, maxLen, structSize)

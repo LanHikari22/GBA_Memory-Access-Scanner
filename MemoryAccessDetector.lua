@@ -5,12 +5,13 @@ base = 0x02001B80
 size = 0x84
 -- In case the block of memory (or struct) has a name. Useful for other programs
 name = "s_02001B80"
-
--- Optional Setttings ------------------------------------------------------------
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = false
--- Number of entries in one line
+
+-- Optional Setttings ------------------------------------------------------------
+--[[ Number of entries in one line. A line is automatically printed when it has
+	 that many entries.]]
 entriesPerLine = 3
 -- Enables detect notification to VBA screen
 printToScreen = true
@@ -18,6 +19,16 @@ printToScreen = true
      start. This could be useful for other software operating on the output of this
 	 program. ]] 
 metaEnabled = true
+--[[ if <lineReleaseTime> frames pass while the line is not empty, 
+	 its contents are automatically printed. It may also be set to a relatively
+	 high value so that it may only occur in the end. It can be fast forwarded into,
+	 as well. Set to -1 to disable automatic line release.]]
+lineReleaseTime = -1
+--[[ Alternatively, You may want to print the line manually instead of relying on
+	 automatic release. This sets the key that activates manual release.
+	 To disable this feature, set lineReleaseKey to -1. Default: 'P'.]]
+lineReleaseKey = 'P'
+
 
 -- Constants (wannabe, please don't change :'( )-----------------------------------
 -- Magic to identify instructions
@@ -33,14 +44,19 @@ PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
 STR_entries = {}
 -- Used to print with no endline. For some reason, I can't do io.write(). 
 line = ''
-
+--[[ The timer decrements each frame the line is not empty. If it's added to,
+	 or if the line has been printed, it resets.]]
+lineReleaseTimer = lineReleaseTime
 
 function main()
 	if metaEnabled then
-		print(string.format("name=%s size=0x%X", name, size))
+		print(string.format("name=%s, size=0x%X", name, size))
 	end
+	
 	-- Detection mode on!
 	while true do
+		releaseLine() -- This is called (if enabled) due to a hack in printing, since i can't print without endline ><
+		manualLineRelease() -- This is manual control through resding input
 		if detectWrites then
 			registerStructWrite(base, size, detectWrite)
 		end
@@ -154,6 +170,7 @@ function decodeLSIntruction(addr)
 		local L = bit.lshift(1, 11)
 		local B = bit.lshift(1, 10)
 		local Ro = bit.lshift(7, 6)
+		output = {}
 		output["magic"] = REG
 		output["op"] = bit.rshift(IMM, 12)
 		output["L"] = bit.rshift(bit.band(inst, L), 11)
@@ -166,6 +183,7 @@ function decodeLSIntruction(addr)
 		local H = bit.lshift(1, 11)
 		local S = bit.lshift(1, 10)
 		local Ro = bit.lshift(7, 6)
+		output = {}
 		output["magic"] = REG_H
 		output["op"] = bit.rshift(IMM, 12)
 		output["H"] = bit.rshift(bit.band(inst, H), 11)
@@ -303,6 +321,8 @@ end
 					the string is only appended to the line
 ]]
 function printSameLine(str, newLine)
+	-- the line is emptied or appended to: reset timer
+	lineReleaseTimer = lineReleaseTime
 	line = line..str
 	if newLine then
 		print(line)
@@ -310,6 +330,35 @@ function printSameLine(str, newLine)
 	end
 end
 
+--[[
+	This is called every frame, and if the lineReleaseTimer reaches zero, and the line is not empty,
+	it is printed. The lineReleaseTimer is reset.
+]]
+function releaseLine()
+	if lineReleaseTime == -1 then
+		return
+	end
+	if lineReleaseTimer ~= 0 then
+		lineReleaseTimer = lineReleaseTimer - 1
+	elseif lineReleaseTimer == 0 and line ~= '' then
+		newLine = true
+		printSameLine('', newLine)
+	end
+end
+
+--[[
+
+]]
+function manualLineRelease()
+	if lineReleaseKey == -1 then
+		return
+	end
+	inputTable = input.get()
+	if inputTable[lineReleaseKey] and line ~= '' then
+		newLine = true
+		printSameLine('', newLine)
+	end
+end
 
 --[[
  Returns whether the value <value> is in the array <arr>
