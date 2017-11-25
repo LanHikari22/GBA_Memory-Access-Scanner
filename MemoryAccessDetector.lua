@@ -1,10 +1,10 @@
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x02001B80
+base = 0x02005F48
 -- The size of the memory block (ex. 0x22)
-size = 0x84
+size = 0x1B0
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_02001B80"
+name = "NPC"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
@@ -98,9 +98,9 @@ function detectWrite()
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
 		local offset = getOffset(inst)
-		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "?"
+		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "-1"
 
-		local msg = string.format("%s::%08X %s(0x%02X)", funcAddr, pc, utype_str, offset)
+		local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
 		if printToScreen then
 			vba.message(msg)
 		end

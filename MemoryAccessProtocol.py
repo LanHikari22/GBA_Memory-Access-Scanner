@@ -64,7 +64,8 @@ class MemoryAccessProtocol:
     def generate_member_entries(self):
         self._SMEntries = []
         for MAEntry in self._MAEntries:
-            SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X" % MAEntry.offset,
+            if MAEntry.offset == -1: continue # cannot imply anything on structure members with these...
+            SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
                                                 location= MAEntry.offset, otherContent='')
             self._SMEntries.append(SMEntry)
         # All duplicated of the same type are removed
