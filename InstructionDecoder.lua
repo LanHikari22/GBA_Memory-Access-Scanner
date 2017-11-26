@@ -12,7 +12,8 @@ InstDecoder.REG_H =	  0x5200 -- 0b0101_0010_0000_0000
 InstDecoder.PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
 -- BX magic
 InstDecoder.BX =      0x4700
-
+-- MOV PC, LR
+InstDecoder.MOV_PC_LR = 0x46F7
 
 
 --[[

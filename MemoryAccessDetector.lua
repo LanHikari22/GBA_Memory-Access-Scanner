@@ -2,14 +2,14 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x02009F40
+base = 0x0203A4EC
 -- The size of the memory block (ex. 0x22)
-size = 0x1B0
+size = 0x80
 -- In case the block of memory (or struct) has a name. Useful for other programs
 name = "s_02001B80"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
-detectReads = false
+detectReads = true
 
 -- Optional Setttings ------------------------------------------------------------
 --[[ Number of entries in one line. A line is automatically printed when it has
@@ -85,25 +85,33 @@ function detectWrite()
 	local pc = memory.getregister("r15") - 4  -- -4 b/c two instruction lag
 	local inst = InstDecoder.decode_LdrStr(pc)
 	if not inArray(pc, STR_entries) and inst ~= nil then
-		table.insert(STR_entries, pc)
+        table.insert(STR_entries, pc)
 		local funcAddr = findFuncAddr(pc)
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
 		local offset = getOffset(inst)
 		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "-1"
         -- If the function address or the access offset are unknown, set this up for reexamination
-        if
+--        if string.find(funcAddr, "?") then
+--            FuncRxm.addUnkFuncAddr(pc, funcAddr, utype_str, offset_str)
+--        end
+--        if offset_str == "-1" then
+--            FuncRxm.addUnkRegOff(pc, funcAddr, utype_str, offset_str)
+--        end
+--        if string.find(funcAddr, "?") == nill and offset_str ~= "-1" then
+        local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+        if printToScreen then
+            vba.message(msg)
+        end
+        -- print everytime there are entriesPerLine entries in the line
+        local endline = true
+        if #STR_entries % entriesPerLine == 0 then
+            printSameLine(msg..", ", endline)
+        else
+            printSameLine(msg..", ", not endline)
+        end
+--        end
 
-		local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-		if printToScreen then
-			vba.message(msg)
-		end
-		local endline = true
-		if #STR_entries % entriesPerLine == 0 then
-			printSameLine(msg..", ", endline)
-		else
-			printSameLine(msg..", ", not endline)
-		end
 	end
     -- vba.pause()
 end
@@ -117,17 +125,36 @@ end
 ]]
 function findFuncAddr(addr)
 	local curr = addr
-	local output = "?"
+	local output
 	local stillSearching = true
 	while stillSearching do
-		inst = InstDecoder.decode_PushPop(curr)
+        -- if a push{..., lr} pr pop{..., pc} is encountered
+		local inst = InstDecoder.decode_PushPop(curr)
 		if inst ~= nil and inst["R"] == 1 then
 			stillSearching = false
 			if inst["L"] == 0 then -- yay detected a push {lr} before pop {pc}!
 				output = string.format("%08X", curr)
+            else -- pop {pc} before push {lr}? oops
+                output = string.format("%08X?", curr+2)
 			end
-		end
+        end
+        -- if curr instruction is a mov pc, lr: yikes.
+        if inst == InstDecoder.MOV_PC_LR then
+            stillSearching = false
+            output = string.format("%08X?", curr+2)
+        end
+        -- if curr instructions are pop{rx} bx: yikes
+        local instBx = InstDecoder.decode_bx(curr)
+        local instPop = InstDecoder.decode_PushPop(curr-2)
+        if instBx ~= nil and instPop ~= nil and instPop.R == 0 and instPop.L == 1 then
+            -- if Rlist contains Rx, this is a return mechanism
+            if bit.band(instPop.Rlist, bit.lshift(1,instBx.Rx)) ~= 0 then
+                stillSearching = false
+                output = string.format("%08X?", curr+2)
+            end
+        end
 		curr = curr - 2
+
 	end
 	return output
 end
