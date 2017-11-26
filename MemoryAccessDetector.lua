@@ -137,13 +137,13 @@ end
 ]]
 function getType(inst)
 	local output = -1
-	if inst["magic"] == IMM or inst["magic"] == REG then
+	if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.REG then
 		if inst["B"] == 0 then
 			output = 32
 		elseif inst["B"] == 1 then
 			output = 8
 		end
-	elseif inst["magic"] == IMM_H or inst["magic"] == REG_H then
+	elseif inst["magic"] == InstDecoder.IMM_H or inst["magic"] == InstDecoder.REG_H then
 		output = 16
 	end
 	return output
@@ -156,14 +156,8 @@ end
 ]]
 function getOffset(inst)
 	local output = -1
-	if inst["magic"] == IMM then
-		if inst["B"] == 0 then
-			output = inst["Off7"]
-		elseif inst["B"] == 1 then
-			output = inst["Off5"]
-		end
-	elseif inst["magic"] == IMM_H then
-		output = inst["Off6"]
+	if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
+		output = inst["offset"]
 	end
 	return output
 end
