@@ -28,6 +28,7 @@ function testInstructionDecoder()
     local TT = {name="testInstructionDecoder()", subtests={}, passed=nil}
     table.insert(TT.subtests, test_decode_LdrStr())
     table.insert(TT.subtests, test_decode_PushPop())
+    table.insert(TT.subtests, test_decode_bx())
     return determinePass(TT)
 end
 
@@ -239,6 +240,23 @@ function test_decode_PushPop()
     )
     if not passed then table.insert(TT.subtests, {name="[2]", passed=false}) end
 
+
+    return determinePass(TT)
+end
+
+function test_decode_bx()
+    local TT = {name="decode_bx()", subtests={}, passed=true }
+    math.randomseed(os.time())
+
+    -- Instance 1: bx rx
+    local randByte = math.random(0,15) * 8
+    memory.writeshort(FS_ADDR, bit.bor(InstDecoder.BX, randByte))
+    local inst = InstDecoder.decode_bx(FS_ADDR)
+    local passed=(
+    inst.magic == InstDecoder.BX
+    and inst.Rx == randByte/8
+    )
+    if not passed then table.insert(TT.subtests, {name="[1]", passed=false}) end
 
     return determinePass(TT)
 end

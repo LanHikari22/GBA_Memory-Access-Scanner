@@ -10,6 +10,8 @@ InstDecoder.REG = 	  0x5000 -- 0b0101_0000_0000_0000
 InstDecoder.REG_H =	  0x5200 -- 0b0101_0010_0000_0000
 -- PUSH/POP Magic
 InstDecoder.PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
+-- BX magic
+InstDecoder.BX =      0x4700
 
 
 
@@ -145,6 +147,21 @@ InstDecoder.decode_PushPop = function(addr)
 
 end
 
+--[[
+    Each register is its value times 8 in the lower byte in the halfword.
+    The upper halfword is always 0x47, as seen by the BX magic.
+    @param addr the address for the instruction to decode
+    @return the instruction if it's a bx instruction or nil
+ ]]
+InstDecoder.decode_bx = function(addr)
+    inst = memory.readshort(addr)
+    local output
+    if bit.band(inst, InstDecoder.BX) == InstDecoder.BX
+            and bit.rshift(inst, 8) == bit.rshift(InstDecoder.BX, 8) then
+        output = {magic=InstDecoder.BX, Rx=(inst-InstDecoder.BX)/8 }
+    end
+    return output
+end
 
 --[[
 	Confirms that magic matches by ANDING the instruction with the magic
