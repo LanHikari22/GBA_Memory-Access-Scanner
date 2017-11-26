@@ -1,10 +1,10 @@
 require "InstructionDecoder" -- InstDecoder
-
+require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x02001B80
+base = 0x02009F40
 -- The size of the memory block (ex. 0x22)
-size = 0x84
+size = 0x1B0
 -- In case the block of memory (or struct) has a name. Useful for other programs
 name = "s_02001B80"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
@@ -91,6 +91,8 @@ function detectWrite()
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
 		local offset = getOffset(inst)
 		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "-1"
+        -- If the function address or the access offset are unknown, set this up for reexamination
+        if
 
 		local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
 		if printToScreen then
@@ -158,6 +160,10 @@ function getOffset(inst)
 	local output = -1
 	if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
 		output = inst["offset"]
+    elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
+        if inst["Ro"] ~= inst["Rd"] then
+            output = memory.getregister("r"..inst["Ro"])
+        end
 	end
 	return output
 end
