@@ -14,7 +14,8 @@ InstDecoder.PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
 InstDecoder.BX =      0x4700
 -- MOV PC, LR
 InstDecoder.MOV_PC_LR = 0x46F7
-
+-- MOV REG, #IMM
+InstDecoder.MOV_IMM = 0x2000
 
 --[[
     This tries to decode any instruction at the given address, using available decode_<instType> functions.
@@ -163,6 +164,16 @@ InstDecoder.decode_bx = function(addr)
     end
     return output
 end
+
+InstDecoder.decode_MovImm = function(addr)
+    local inst = memory.readshort(addr)
+    local output
+    -- Magic must match, and the instruction only allows destination register up to r7
+    if bit.band(inst, InstDecoder.MOV_IMM) == InstDecoder.MOV_IMM and inst < InstDecoder.MOV_IMM + 0x800 then
+        output = {magic=InstDecoder.MOV_IMM, Rd=bit.rshift(bit.band(inst, 0x0700), 8), imm=bit.band(inst, 0xFF) }
+    end
+    return output
+ end
 
 --[[
 	Confirms that magic matches by ANDING the instruction with the magic

@@ -29,13 +29,35 @@ FuncRxm.callbackQueue = {} -- Any access that is actually called through callbac
 
     @param addr address of access
  ]]
-FuncRxm.addUnkFuncAddr = function(addr)
-    print(string.format("Detected Mysterious Access (Function): 0x%X", addr))
-    local above = true
-    local aboveReturnAddr = FuncRxm._findNearestReturn(addr,above)
-    local belowReturnAddr = FuncRxm._findNearestReturn(addr,not above)
-    print(string.format("0x%X - 0x%X", aboveReturnAddr, belowReturnAddr))
+FuncRxm.addUnkFuncAddr = function(pc, funcAddr, utype_str, offset_str)
+    -- TODO: standard printing... for now
+    local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+    if printToScreen then
+        vba.message(msg)
+    end
+    -- print everytime there are entriesPerLine entries in the line
+    local endline = true
+    if #STR_entries % entriesPerLine == 0 then
+        printSameLine(msg..", ", endline)
+    else
+        printSameLine(msg..", ", not endline)
+    end
 
+
+--    print(string.format("Detected Mysterious Access (Function): 0x%X", pc))
+    local above = true
+    local aboveReturnAddr = FuncRxm._findNearestReturn(pc,above)
+    local belowReturnAddr = FuncRxm._findNearestReturn(pc,not above)
+    -- now break on the execution of a return: this will in turn also break on a write...
+    memory.registerexec(belowReturnAddr, FuncRxm._handleFuncCaller)
+    -- Add all information into the queue so it's available to the handler
+    table.insert(FuncRxm.funcAddrQueue, {pc, funcAddr, belowReturnAddr, utype_str, offset_str})
+--    print(string.format("%X - %X", aboveReturnAddr, belowReturnAddr))
+end
+
+FuncRxm._handleFuncCaller = function()
+--    print(string.format("In handler: %X", memory.getregister('r15')-4))
+--    vba.pause()
 end
 
 --[[
@@ -43,8 +65,21 @@ end
     We register a handler to the execution of the instruction just before to obtain the offset register.
     @param addr address of access
  ]]
-FuncRxm.addUnkRegOff = function(addr)
-    print(string.format("Detected Mysterious Access (Register): 0x%X", addr))
+FuncRxm.addUnkRegOff = function(pc, funcAddr, utype_str, offset_str)
+    -- TODO: standard printing... for now
+    local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+    if printToScreen then
+        vba.message(msg)
+    end
+    -- print everytime there are entriesPerLine entries in the line
+    local endline = true
+    if #STR_entries % entriesPerLine == 0 then
+        printSameLine(msg..", ", endline)
+    else
+        printSameLine(msg..", ", not endline)
+    end
+
+--    print(string.format("Detected Mysterious Access (Register): %s::0x%X", funcAddr, pc))
 end
 
 FuncRxm._findNearestReturn = function(addr, above)
@@ -66,7 +101,14 @@ FuncRxm._findNearestReturn = function(addr, above)
 			end
         end
         -- if curr instruction is a mov pc, lr
+        local inst = memory.readshort(curr)
         if inst == InstDecoder.MOV_PC_LR then
+            stillSearching = false
+            output = curr
+        end
+        -- if curr is bx lr
+        local instBx = InstDecoder.decode_bx(curr)
+        if instBx ~= nil and instBx.Rx == 14 then
             stillSearching = false
             output = curr
         end

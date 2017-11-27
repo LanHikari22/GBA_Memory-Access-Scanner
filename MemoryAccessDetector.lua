@@ -6,7 +6,7 @@ base = 0x0203A4EC
 -- The size of the memory block (ex. 0x22)
 size = 0x80
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_02001B80"
+name = "s_0203A4EC"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
@@ -43,8 +43,7 @@ lineReleaseTimer = lineReleaseTime
 function main()
 	if metaEnabled then
 		print(string.format("name=%s, size=0x%X", name, size))
-	end
-
+    end
 	-- Detection mode on!
 	while true do
 		releaseLine() -- This is called (if enabled) due to a hack in printing, since i can't print without endline ><
@@ -57,6 +56,19 @@ function main()
 		end
 		vba.frameadvance()
 	end
+end
+
+-- TODO: debug: This just doesn't fire. I don't know why.
+function main1()
+    while true do
+        memory.registerexecute(0x802A6EA , veep)
+        vba.frameadvance()
+    end
+end
+
+function veep()
+    print("veep")
+    vba.pause()
 end
 
 --[[
@@ -89,28 +101,28 @@ function detectWrite()
 		local funcAddr = findFuncAddr(pc)
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
-		local offset = getOffset(inst)
+		local offset = getOffset(inst, pc)
 		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "-1"
         -- If the function address or the access offset are unknown, set this up for reexamination
---        if string.find(funcAddr, "?") then
---            FuncRxm.addUnkFuncAddr(pc, funcAddr, utype_str, offset_str)
---        end
---        if offset_str == "-1" then
---            FuncRxm.addUnkRegOff(pc, funcAddr, utype_str, offset_str)
---        end
---        if string.find(funcAddr, "?") == nill and offset_str ~= "-1" then
-        local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-        if printToScreen then
-            vba.message(msg)
+        if string.find(funcAddr, "?") then
+            FuncRxm.addUnkFuncAddr(pc, funcAddr, utype_str, offset_str)
         end
-        -- print everytime there are entriesPerLine entries in the line
-        local endline = true
-        if #STR_entries % entriesPerLine == 0 then
-            printSameLine(msg..", ", endline)
-        else
-            printSameLine(msg..", ", not endline)
+        if offset_str == "-1" then
+            FuncRxm.addUnkRegOff(pc, funcAddr, utype_str, offset_str)
         end
---        end
+        if string.find(funcAddr, "?") == nill and offset_str ~= "-1" then
+            local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+            if printToScreen then
+                vba.message(msg)
+            end
+            -- print everytime there are entriesPerLine entries in the line
+            local endline = true
+            if #STR_entries % entriesPerLine == 0 then
+                printSameLine(msg..", ", endline)
+            else
+                printSameLine(msg..", ", not endline)
+            end
+        end
 
 	end
     -- vba.pause()
@@ -139,7 +151,14 @@ function findFuncAddr(addr)
 			end
         end
         -- if curr instruction is a mov pc, lr: yikes.
+        local inst = memory.readshort(curr)
         if inst == InstDecoder.MOV_PC_LR then
+            stillSearching = false
+            output = string.format("%08X?", curr+2)
+        end
+        -- if curr is bx lr
+        local instBx = InstDecoder.decode_bx(curr)
+        if instBx ~= nil and instBx.Rx == 14 then
             stillSearching = false
             output = string.format("%08X?", curr+2)
         end
@@ -153,6 +172,7 @@ function findFuncAddr(addr)
                 output = string.format("%08X?", curr+2)
             end
         end
+
 		curr = curr - 2
 
 	end
@@ -183,13 +203,19 @@ end
 	@param inst A table representing the decoded instruction
 	@return the offset in the intruction if present
 ]]
-function getOffset(inst)
+function getOffset(inst, pc)
 	local output = -1
 	if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
 		output = inst["offset"]
     elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
         if inst["Ro"] ~= inst["Rd"] then
             output = memory.getregister("r"..inst["Ro"])
+        else
+            -- Try to check above instruction. One pattern is a mov Ro, imm.
+            local prevInst = InstDecoder.decode_MovImm(pc-2)
+            if prevInst ~= nill and prevInst.Rd == inst.Ro then
+                output = prevInst.imm
+            end
         end
 	end
 	return output
