@@ -12,14 +12,16 @@ class MemoryAccessEntry:
     functionAddr: str
     accessAddr: int
     type: int
+    base: int
     offset: int
-    def __init__(self, functionAddr, accessAddr, _type, offset):
+    def __init__(self, functionAddr, accessAddr, _type, base, offset):
         if type(functionAddr) is not str or type(accessAddr) is not int or \
                         type(_type) is not int and type(offset) is not int:
             raise(Exception("Invalid inputs to MemoryAccessEntry"))
         self.functionAddr = functionAddr
         self.accessAddr = accessAddr
         self.type = _type
+        self.base = base
         self.offset = offset
 
 
@@ -58,8 +60,18 @@ class MemoryAccessProtocol:
             funcAddr = addresses[:addresses.index("::")]
             accessAddr = int(addresses[addresses.index("::")+2:], 16)
             type = int(re.search(r"\d+", memAccess[:memAccess.index("(")]).group())
-            offset = int(memAccess[memAccess.index("(")+1:-1], 16)
-            entry = MemoryAccessEntry(funcAddr,accessAddr,type,offset)
+            # Offset not identified, it cannot be used
+            if "+" in memAccess:
+                if "?" in memAccess:
+                    base = -1
+                    offset = int(memAccess[memAccess.index("+") + 1:-1], 16)
+                else:
+                    base = int(memAccess[memAccess.index("(")+1:memAccess.index("+")], 16)
+                    offset = base + int(memAccess[memAccess.index("+") + 1:-1], 16)
+            else:
+                base = 0
+                offset = int(memAccess[memAccess.index("(")+1:-1], 16)
+            entry = MemoryAccessEntry(funcAddr,accessAddr,type,base, offset)
             self._MAEntries.append(entry)
 
     def generate_member_entries(self):

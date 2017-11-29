@@ -9,7 +9,7 @@ size = 0x80
 name = "s_0203A4EC"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
-detectReads = true
+detectReads = false
 
 -- Optional Setttings ------------------------------------------------------------
 --[[ Number of entries in one line. A line is automatically printed when it has
@@ -101,8 +101,7 @@ function detectWrite()
 		local funcAddr = findFuncAddr(pc)
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
-		local offset = getOffset(inst, pc)
-		local offset_str = (offset ~= -1) and string.format("0x%02X", offset) or "-1"
+		local offset_str = getOffset(inst, pc)
         -- If the function address or the access offset are unknown, set this up for reexamination
         if string.find(funcAddr, "?") then
             FuncRxm.addUnkFuncAddr(pc, funcAddr, utype_str, offset_str)
@@ -200,24 +199,38 @@ end
 
 --[[
 	Gets the offset of an LDR/STR instruction
+	This must be executed when the ARM CPU is actually at pc.
 	@param inst A table representing the decoded instruction
 	@return the offset in the intruction if present
 ]]
 function getOffset(inst, pc)
 	local output = -1
-	if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
-		output = inst["offset"]
-    elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
-        if inst["Ro"] ~= inst["Rd"] then
-            output = memory.getregister("r"..inst["Ro"])
+    if inst ~= nill then
+        -- Confirm Rb is not the same as Rd in order to correctly identify base
+        local output_base
+        if inst["Rb"] ~= inst["Rd"] then
+            local actual_base = memory.getregister("r"..inst["Rb"])
+            output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
         else
-            -- Try to check above instruction. One pattern is a mov Ro, imm.
-            local prevInst = InstDecoder.decode_MovImm(pc-2)
-            if prevInst ~= nill and prevInst.Rd == inst.Ro then
-                output = prevInst.imm
+            output_base = "?+"
+        end
+        -- In case the offset is an immediate
+        if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
+            output = output_base..string.format("0x%02X", inst["offset"]) -- string.format("0x%02X", offset)
+        -- In case the offset is a register
+        elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
+            if inst["Ro"] ~= inst["Rd"] then
+                output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
+            else
+                -- Try to check above instruction. One pattern is a mov Ro, imm.
+                local prevInst = InstDecoder.decode_MovImm(pc-2)
+                if prevInst ~= nill and prevInst.Rd == inst.Ro then
+                    output = output_base..string.format("0x%02X", prevInst.imm)
+                end
             end
         end
-	end
+    end
+
 	return output
 end
 
