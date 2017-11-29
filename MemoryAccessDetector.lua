@@ -9,7 +9,7 @@ size = 0x80
 name = "s_0203A4EC"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
-detectReads = false
+detectReads = true
 
 -- Optional Setttings ------------------------------------------------------------
 --[[ Number of entries in one line. A line is automatically printed when it has
@@ -75,7 +75,7 @@ end
  the function func is called whenever a write to the structure at address addr is detected
 ]]
 function registerStructWrite(addr, size, func)
-	for i=addr,addr+size do
+	for i=addr,addr+size-1 do
 		memory.registerwrite(i, func)
 	end
 end
@@ -84,7 +84,7 @@ end
  the function func is called whenever a read to the structure at address addr is detected
 ]]
 function registerStructRead(addr, size, func)
-	for i=addr,addr+size do
+	for i=addr,addr+size-1 do
 		memory.registerread(i, func)
 	end
 end
@@ -192,7 +192,12 @@ function getType(inst)
 			output = 8
 		end
 	elseif inst["magic"] == InstDecoder.IMM_H or inst["magic"] == InstDecoder.REG_H then
-		output = 16
+        if inst["S"] == 0 then
+		    output = 16
+        else
+            output = 8
+        end
+
 	end
 	return output
 end
