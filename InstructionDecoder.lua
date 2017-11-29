@@ -8,6 +8,8 @@ InstDecoder.IMM = 	  0x6000 -- 0b0110_0000_0000_0000
 InstDecoder.IMM_H =   0x8000 -- 0b1000_0000_0000_0000
 InstDecoder.REG = 	  0x5000 -- 0b0101_0000_0000_0000
 InstDecoder.REG_H =	  0x5200 -- 0b0101_0010_0000_0000
+-- PC RELATIVE LOAD
+InstDecoder.PC_REL =  0x4800 -- 0b0100_1000_0000_0000
 -- PUSH/POP Magic
 InstDecoder.PUSHPOP = 0xB400 -- 0b1011_0100_0000_0000
 -- BX magic
@@ -165,6 +167,9 @@ InstDecoder.decode_bx = function(addr)
     return output
 end
 
+--[[
+    returns nil or {magic=InstDecoder.MOV_IMM, Rd, imm}
+ ]]
 InstDecoder.decode_MovImm = function(addr)
     local inst = memory.readshort(addr)
     local output
@@ -174,6 +179,24 @@ InstDecoder.decode_MovImm = function(addr)
     end
     return output
  end
+
+--[[
+    returns nil or {magic=InstDecoder.PC_REL, Rd, pc_offset}
+    When trying to access the actual data loaded given the address the instruction is at, pc:
+    The address is always at the next work from pc + pc_offset.
+    If pc is word-aligned, it would be (pc+4) + pc_offset , if it's halfword-aligned, it would be (pc+2) + pc_offset
+ ]]
+InstDecoder.decode_PCRel = function(addr)
+    local inst = memory.readshort(addr)
+    local output
+    local Rd = 0x0700; -- bits[10:8] of inst
+    local word8 = 0xFF -- bits[7:0] of inst
+        if bit.band(inst, 0xF800) == InstDecoder.PC_REL then
+        output = {magic=InstDecoder.PC_REL, Rd=bit.rshift(bit.band(inst, Rd), 8),
+        pc_offset=4*bit.band(inst, word8)} -- it's 4 times because this is a word offset
+    end
+    return output
+end
 
 --[[
 	Confirms that magic matches by ANDING the instruction with the magic

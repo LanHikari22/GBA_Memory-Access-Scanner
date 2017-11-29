@@ -217,7 +217,18 @@ function getOffset(inst, pc)
             local actual_base = memory.getregister("r"..inst["Rb"])
             output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
         else
-            output_base = "?+"
+            -- OK, One pattern is an LDR Rx=offset before an access
+            local prevInst = InstDecoder.decode_PCRel(pc-2)
+            if prevInst ~= nill and prevInst.Rd == inst.Rd then
+                -- next word from (pc-2) + pc_offset is where the base is loaded from
+                local actual_base = ((pc-2) % 4 == 0) and memory.readlong(pc + 2 + prevInst.pc_offset) or
+                    memory.readlong(pc + prevInst.pc_offset)
+                if actual_base - base == 0xA2E85D17 then print(string.format("BEEEEEEEEEEEEEEEP pc=%08X", pc + prevInst.pc_offset)) end
+                output_base =  (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
+            else -- Unknown base address
+                output_base = "?+"
+            end
+
         end
         -- In case the offset is an immediate
         if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
