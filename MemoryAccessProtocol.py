@@ -7,6 +7,7 @@
 import re
 import StructPadder
 
+
 class MemoryAccessEntry:
     functionAddr: str
     accessAddr: int
@@ -72,6 +73,8 @@ class MemoryAccessProtocol:
         self.remove_duplicates()
         # there could be duplicates... with different types... mark them
         self.mark_loc_duplicates()
+        # Remove all CONFLICT marked duplicates except for the one with the lowest size
+        self.remove_loc_duplicates()
         # Now to pad. Things will go wrong if there are location duplicates.
         StructPadder.pad(self._SMEntries, self.size)
 
@@ -99,19 +102,28 @@ class MemoryAccessProtocol:
         self._SMEntries = sorted(self._SMEntries, key= lambda x: (x.location, x.size), reverse=False)
         # mark all location duplicates as CONFLICT
         for i in range(len(self._SMEntries)):
-            if self._SMEntries[i].otherContent != " CONFLICT": # " CONFLICT" b/c spaces are included after loc=0x%X
+            if " CONFLICT" not in self._SMEntries[i].otherContent: # " CONFLICT" b/c spaces are included after loc=0x%X
                 for j in range(i+1, len(self._SMEntries)):
                     if self._SMEntries[i].location == self._SMEntries[j].location:
                         if self._SMEntries[i].otherContent == '': self._SMEntries[i].otherContent = " CONFLICT"
                         self._SMEntries[j].otherContent = " CONFLICT"
+                        self._SMEntries[i].otherContent += " u" + str(self._SMEntries[j].size)
+
+    def remove_loc_duplicates(self):
+        # This should only be called after marking, so sorting is guaranteed
+        # The lowest CONFLICT has been marked with all the higher ones. " CONFLICT u16 u32" for example.
+        # The higher ones were only marked with CONFLICT and could cause padding errors: remove them.
+        newSMEntries = []
+        for i in range(len(self._SMEntries)):
+            if self._SMEntries[i].otherContent != " CONFLICT":
+                newSMEntries.append(self._SMEntries[i])
+        self._SMEntries = newSMEntries
 
     def output_struct_template(self):
         print('typedef struct{')
         maxLen = len('uint32_t unk_FFF     ')
         StructPadder.output(self._SMEntries,maxLen,self.size)
         print('\n}%s;' % self.name)
-
-
 
 if __name__ == '__main__':
     inputFile = open("input", "r")
