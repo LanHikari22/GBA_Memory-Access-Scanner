@@ -2,11 +2,11 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x0203A4EC
+base = 0x02001B80
 -- The size of the memory block (ex. 0x22)
-size = 0x80
+size = 0x84
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_0203A4EC"
+name = "s_02001B80"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
@@ -33,7 +33,7 @@ lineReleaseKey = 'P'
 
 -- Globals ----------------------------------------------------------------------
 -- Memory accesses detected for write
-STR_entries = {}
+detectedEntries = {}
 -- Used to print with no endline. For some reason, I can't do io.write(). 
 line = ''
 --[[ The timer decrements each frame the line is not empty. If it's added to,
@@ -49,10 +49,10 @@ function main()
 		releaseLine() -- This is called (if enabled) due to a hack in printing, since i can't print without endline ><
 		manualLineRelease() -- This is manual control through resding input
 		if detectWrites then
-			registerStructWrite(base, size, detectWrite)
+			registerStructWrite(base, size, detectAccess)
 		end
-		if detectReads then -- TODO: change to detectRead?
-			registerStructRead(base, size, detectWrite)
+		if detectReads then
+			registerStructRead(base, size, detectAccess)
 		end
 		vba.frameadvance()
 	end
@@ -93,30 +93,35 @@ end
 --[[
 	This assumes that the write to be detected is in THUMB mode.
 ]]
-function detectWrite()
-	local pc = memory.getregister("r15") - 4  -- -4 b/c two instruction lag
+function detectAccess()
+	local pc = memory.getregister("r15") - 4  -- -4 due to pipelining
 	local inst = InstDecoder.decode_LdrStr(pc)
-	if not inArray(pc, STR_entries) and inst ~= nil then
-        table.insert(STR_entries, pc)
+
+	if not FuncRxm.inArray(pc, detectedEntries) and inst ~= nil then
+
+        table.insert(detectedEntries, pc) -- when encountering this again, just ignore it.
 		local funcAddr = findFuncAddr(pc)
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
 		local offset_str = getOffset(inst, pc)
+
         -- If the function address or the access offset are unknown, set this up for reexamination
-        if string.find(funcAddr, "?") then
-            FuncRxm.addUnkFuncAddr(pc, funcAddr, utype_str, offset_str)
+        if string.find(funcAddr, "?") or string.find(offset_str, "?") ~= nil then
+            if pc == 0x8035938 then
+                printState()
+            end
+            FuncRxm.registerForReexamination(pc, funcAddr, utype_str, offset_str)
         end
-        if offset_str == "-1" then
-            FuncRxm.addUnkRegOff(pc, funcAddr, utype_str, offset_str)
-        end
-        if string.find(funcAddr, "?") == nill and offset_str ~= "-1" then
+
+        -- Normal case, both function address and offset were detected easily
+        if string.find(funcAddr, "?") == nil and string.find(offset_str, "?") == nil then
             local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
             if printToScreen then
                 vba.message(msg)
             end
             -- print everytime there are entriesPerLine entries in the line
             local endline = true
-            if #STR_entries % entriesPerLine == 0 then
+            if #detectedEntries % entriesPerLine == 0 then
                 printSameLine(msg..", ", endline)
             else
                 printSameLine(msg..", ", not endline)
@@ -210,40 +215,45 @@ end
 ]]
 function getOffset(inst, pc)
 	local output = -1
-    if inst ~= nill then
+    if inst ~= nil then
         -- Confirm Rb is not the same as Rd in order to correctly identify base
         local output_base
-        if inst["Rb"] ~= inst["Rd"] then
-            local actual_base = memory.getregister("r"..inst["Rb"])
-            output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
-        else
-            -- OK, One pattern is an LDR Rx=offset before an access
-            local prevInst = InstDecoder.decode_PCRel(pc-2)
-            if prevInst ~= nill and prevInst.Rd == inst.Rd then
-                -- next word from (pc-2) + pc_offset is where the base is loaded from
-                local actual_base = ((pc-2) % 4 == 0) and memory.readlong(pc + 2 + prevInst.pc_offset) or
-                    memory.readlong(pc + prevInst.pc_offset)
-                if actual_base - base == 0xA2E85D17 then print(string.format("BEEEEEEEEEEEEEEEP pc=%08X", pc + prevInst.pc_offset)) end
-                output_base =  (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
-            else -- Unknown base address
-                output_base = "?+"
-            end
+        local actual_base = memory.getregister("r"..inst["Rb"])
+        output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
 
-        end
+--        if inst["Rb"] ~= inst["Rd"] then
+--            local actual_base = memory.getregister("r"..inst["Rb"])
+--            output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
+--        else
+--            -- OK, One pattern is an LDR Rx=offset before an access
+--            local prevInst = InstDecoder.decode_PCRel(pc-2)
+--            if prevInst ~= nil and prevInst.Rd == inst.Rd then
+--                -- next word from (pc-2) + pc_offset is where the base is loaded from
+--                local actual_base = ((pc-2) % 4 == 0) and memory.readlong(pc + 2 + prevInst.pc_offset) or
+--                    memory.readlong(pc + prevInst.pc_offset)
+--                if actual_base - base == 0xA2E85D17 then print(string.format("BEEEEEEEEEEEEEEEP pc=%08X", pc + prevInst.pc_offset)) end
+--                output_base =  (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
+--            else -- Unknown base address
+--                output_base = "?+"
+--            end
+--        end
+
         -- In case the offset is an immediate
         if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
             output = output_base..string.format("0x%02X", inst["offset"]) -- string.format("0x%02X", offset)
         -- In case the offset is a register
         elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
-            if inst["Ro"] ~= inst["Rd"] then
-                output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
-            else
-                -- Try to check above instruction. One pattern is a mov Ro, imm.
-                local prevInst = InstDecoder.decode_MovImm(pc-2)
-                if prevInst ~= nill and prevInst.Rd == inst.Ro then
-                    output = output_base..string.format("0x%02X", prevInst.imm)
-                end
-            end
+            print("reg")
+            output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
+--            if inst["Ro"] ~= inst["Rd"] then
+--                output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
+--            else
+--                -- Try to check above instruction. One pattern is a mov Ro, imm.
+--                local prevInst = InstDecoder.decode_MovImm(pc-2)
+--                if prevInst ~= nil and prevInst.Rd == inst.Ro then
+--                    output = output_base..string.format("0x%02X", prevInst.imm)
+--                end
+--            end
         end
     end
 
@@ -278,7 +288,7 @@ function releaseLine()
 	if lineReleaseTimer ~= 0 then
 		lineReleaseTimer = lineReleaseTimer - 1
 	elseif lineReleaseTimer == 0 and line ~= '' then
-		newLine = true
+		local newLine = true
 		printSameLine('', newLine)
 	end
 end
@@ -290,27 +300,19 @@ function manualLineRelease()
 	if lineReleaseKey == -1 then
 		return
 	end
-	inputTable = input.get()
+	local inputTable = input.get()
 	if inputTable[lineReleaseKey] and line ~= '' then
-		newLine = true
+		local newLine = true
 		printSameLine('', newLine)
 	end
 end
 
---[[
- Returns whether the value <value> is in the array <arr>
- @param value	value to check for
- @param arr		array to check for value in
- @return whether the value was in the array
-]]
-function inArray(value, arr)
-	local wasThere = false
-	for k,v in ipairs(arr) do
-		if v == value then
-			wasThere = true
-		end
-	end
-	return wasThere
+function printState()
+    local state = ''
+    for i=0,15 do
+        state = state..string.format("%08X ", memory.getregister("r"..i))
+        if (i+1) % 4 == 0 then print(state); state = '' end
+    end
 end
 
 main()

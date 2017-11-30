@@ -11,10 +11,38 @@ require "InstructionDecoder" -- InstDecoder
 -- This module's table
 FuncRxm = {}
 
--- Those queues determine what must be handled. Those are special cases that needs to be taken care of.
-FuncRxm.regOffQueue = {} -- any encountered accesses with register offsets go here
-FuncRxm.funcAddrQueue = {} -- any encountered accesses with unknown function addresses go here
-FuncRxm.callbackQueue = {} -- Any access that is actually called through callback needs a second round
+-- Those tables determine what must be handled. Those are special cases that needs to be taken care of.
+FuncRxm.processTable = {} -- any accesses that require more investigation on their offsets/func addresses
+FuncRxm.readyTable = {} -- Accesses that have been processed already! The MemoryAccessDetector module takes these back
+-- Format of access entries: {entryType={func=true/false, reg=true/false},handlerAddresses, pc, funcAddr, utype_str, offset_str}}
+
+--[[
+    This must be called on all access entries that were not investigated fully such as if
+    the function address is not known fully, or if the offset is unknown.
+    This module attempts to reexamine them and determine what is missing.
+ ]]
+FuncRxm.registerForReexamination = function(pc, funcAddr, utype_str, offset_str)
+    -- print
+    local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+            if printToScreen then
+                vba.message(msg)
+            end
+            -- print everytime there are entriesPerLine entries in the line
+            local endline = true
+            if #detectedEntries % entriesPerLine == 0 then
+                printSameLine(msg..", ", endline)
+            else
+                printSameLine(msg..", ", not endline)
+            end
+
+
+--    if string.find(funcAddr, "?") ~= nil then
+--        FuncRxm._setupUnkFuncAddrHandler(pc, funcAddr, utype_str, offset_str)
+--    end
+--    if string.find(offset_str, "?") ~= nil then
+--        FuncRxm._setupUnkRegOffHandler(pc, funcAddr, utype_str, offset_str)
+--    end
+end
 
 --[[
     When a function with an unknown function address is detected,
@@ -29,29 +57,16 @@ FuncRxm.callbackQueue = {} -- Any access that is actually called through callbac
 
     @param addr address of access
  ]]
-FuncRxm.addUnkFuncAddr = function(pc, funcAddr, utype_str, offset_str)
-    -- TODO: standard printing... for now
-    local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-    if printToScreen then
-        vba.message(msg)
-    end
-    -- print everytime there are entriesPerLine entries in the line
-    local endline = true
-    if #STR_entries % entriesPerLine == 0 then
-        printSameLine(msg..", ", endline)
-    else
-        printSameLine(msg..", ", not endline)
-    end
-
+FuncRxm._setupUnkFuncAddrHandler = function(pc, funcAddr, utype_str, offset_str)
 
 --    print(string.format("Detected Mysterious Access (Function): 0x%X", pc))
     local above = true
-    local aboveReturnAddr = FuncRxm._findNearestReturn(pc,above)
     local belowReturnAddr = FuncRxm._findNearestReturn(pc,not above)
     -- now break on the execution of a return: this will in turn also break on a write...
     memory.registerexec(belowReturnAddr, FuncRxm._handleFuncCaller)
     -- Add all information into the queue so it's available to the handler
-    table.insert(FuncRxm.funcAddrQueue, {pc, funcAddr, belowReturnAddr, utype_str, offset_str})
+    FuncRxm.addToProcessTable({entryType={func=true, reg=false},handlerAddresses={belowReturnAddr},
+        pc, funcAddr, utype_str, offset_str})
 --    print(string.format("%X - %X", aboveReturnAddr, belowReturnAddr))
 end
 
@@ -65,21 +80,27 @@ end
     We register a handler to the execution of the instruction just before to obtain the offset register.
     @param addr address of access
  ]]
-FuncRxm.addUnkRegOff = function(pc, funcAddr, utype_str, offset_str)
+FuncRxm._setupUnkRegOffHandler = function(pc, funcAddr, utype_str, offset_str)
     -- TODO: standard printing... for now
-    local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-    if printToScreen then
-        vba.message(msg)
-    end
-    -- print everytime there are entriesPerLine entries in the line
-    local endline = true
-    if #STR_entries % entriesPerLine == 0 then
-        printSameLine(msg..", ", endline)
-    else
-        printSameLine(msg..", ", not endline)
+    print(string.format("Detected Mysterious Access (Register): %s::%X", funcAddr, pc))
+    print(string.format("r4=%08X", memory.getregister("r4")))
+    -- Set a handler to be executed one instruction before, to retrieve missing offset information
+    memory.registerexec(pc, FuncRxm._handleRetrievingRegOffset)
+    -- Add entry to the processTable to be processed by the handler
+    FuncRxm.addToProcessTable({entryType={func=false, reg=true}, handlerAddresses={pc},
+        pc, funcAddr, utype_str, offset_str})
+
+end
+
+FuncRxm._handleRetrievingRegOffset = function()
+    local pc = memory.getregister("r15") - 4
+    if not FuncRxm.inArray(pc, FuncRxm.readyTable) then
+        table.insert(FuncRxm.readyTable, pc)
+        print(string.format("Hit register handler: %08X", pc))
+        print(string.format("r4=%08X", memory.getregister("r4")))
+
     end
 
---    print(string.format("Detected Mysterious Access (Register): %s::0x%X", funcAddr, pc))
 end
 
 FuncRxm._findNearestReturn = function(addr, above)
@@ -127,4 +148,83 @@ FuncRxm._findNearestReturn = function(addr, above)
 	end
 	return output
 
+end
+
+--[[
+    This function is to be called by the MemoryaccessDetector module to register that the requested special case
+    entries it requested have been already processed. It also outputs those entries.
+
+    @param entries A table of Access addresses, it is appended to so that the MAD module ignores that address in the future
+    @return the entries, but with all processed entries accounted for
+ ]]
+FuncRxm.retrieveProcessedEntries = function(entries)
+    for k,entry in ipairs(FuncRxm.readyTable) do
+        print("FuncRxm.retrieveProcessedEntries executes~")
+        table.insert(entries,entry.pc)
+    end
+    FuncRxm.readyTable = {}
+    return entries
+end
+
+FuncRxm.addToProcessTable = function(accessEntry)
+    local entryKey = FuncRxm._getEntryKey({entry=accessEntry})
+    if entryKey == nil then
+        table.insert(FuncRxm.processTable, accessEntry)
+    else
+        -- Set extra entry type, originally it was only one: now it's two that are set
+        if accessEntry.entryType.func then
+            FuncRxm.processTable[entryKey].entryType.func = true
+        end
+        if accessEntry.entryType.reg then
+            FuncRxm.processTable[entryKey].entryType.reg = true
+        end
+
+        -- add the new handlers to the entry
+        for k, handlerAddr in ipairs(accessEntry.handlerAddresses) do
+           table.insert(FuncRxm.processTable[entryKey].handlerAddresses, handlerAddr)
+        end
+    end
+end
+
+--[[
+    Given the program pointer for a handler, or a similar access entry (same PC)
+
+    @param inTbl Either specify a handler address, or an entry:
+            {handlerAddr=...} or {entry=...}
+    returns the key for the associated access entry from the process table or nil
+ ]]
+FuncRxm._getEntryKey = function(inTbl)
+    local output
+    for k0, accessEntry in ipairs(FuncRxm.processTable) do
+            if inTbl.handlerAddr ~= nil and inTbl.entry == nil then
+                for k1, AEHandlerAddr in ipairs(accessEntry.handlerAddresses) do
+                    -- If at least one handler address matches in both, this is the entry desired
+                    if AEHandlerAddr == inTbl.handlerAddr then
+                        output = k0
+                    end
+                end
+            elseif inTbl.handlerAddr == nil and inTbl.entry ~= nil then
+                if accessEntry.pc == inTbl.entry.pc then
+                    -- Same access address, therefore this is the desired entry!
+                   output = k0
+                end
+            end
+    end
+    return output
+end
+
+--[[
+ Returns whether the value <value> is in the array <arr>
+ @param value	value to check for
+ @param arr		array to check for value in
+ @return whether the value was in the array
+]]
+FuncRxm.inArray = function(value, arr)
+	local wasThere = false
+	for k,v in ipairs(arr) do
+		if v == value then
+			wasThere = true
+		end
+	end
+	return wasThere
 end
