@@ -4,6 +4,7 @@
 # It can also generate a template structure from the parsed information, and pads it using the StructPadder module
 # so that it's a programmatically usable structure template.
 ##
+import sys
 import re
 import StructPadder
 
@@ -133,12 +134,29 @@ class MemoryAccessProtocol:
         StructPadder.output(self._SMEntries,maxLen,self.size)
         print('\n}%s;' % self.name)
 
+    def output_functions(self):
+        functions = []
+        for entry in self._MAEntries:
+            if entry.functionAddr not in functions:
+                functions.append(entry.functionAddr)
+        functions = sorted(functions)
+        for function in functions:
+            print(function)
+        pass
+
+
 if __name__ == '__main__':
-    inputFile = open("input", "r")
+    if len(sys.argv) < 3:
+        print("Program Format: progName <inputFile> <outputMode>\noutputMode can be: struct or functions")
+        exit(-1)
+    inputFile = open(sys.argv[1], "r")
     line = inputFile.readline()
     memap = MemoryAccessProtocol(line) # parse meta information line
     while line != '':
         line = inputFile.readline()
         memap.parseline(line)
     memap.generate_member_entries()
-    memap.output_struct_template()
+    if sys.argv[2] == "struct":
+        memap.output_struct_template()
+    elif sys.argv[2] == "functions":
+        memap.output_functions()

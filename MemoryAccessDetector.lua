@@ -2,7 +2,7 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x0203A4EC
+base = 0x02001B80
 -- The size of the memory block (ex. 0x22)
 size = 0x80
 -- In case the block of memory (or struct) has a name. Useful for other programs
