@@ -2,9 +2,9 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x02001B80
+base = 0x0203A4EC
 -- The size of the memory block (ex. 0x22)
-size = 0x84
+size = 0x80
 -- In case the block of memory (or struct) has a name. Useful for other programs
 name = "s_02001B80"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
@@ -103,18 +103,15 @@ function detectAccess()
 		local funcAddr = findFuncAddr(pc)
 		local utype = getType(inst)
 		local utype_str = (utype ~= -1) and "u"..utype or "?"
-		local offset_str = getOffset(inst, pc)
+		local offset_str = getOffset(inst)
 
-        -- If the function address or the access offset are unknown, set this up for reexamination
-        if string.find(funcAddr, "?") or string.find(offset_str, "?") ~= nil then
-            if pc == 0x8035938 then
-                printState()
-            end
+        -- If the function address is unknown, set this up for reexamination
+        if string.find(funcAddr, "?") then
             FuncRxm.registerForReexamination(pc, funcAddr, utype_str, offset_str)
         end
 
         -- Normal case, both function address and offset were detected easily
-        if string.find(funcAddr, "?") == nil and string.find(offset_str, "?") == nil then
+        if string.find(funcAddr, "?") == nil then
             local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
             if printToScreen then
                 vba.message(msg)
@@ -196,8 +193,10 @@ function getType(inst)
 		elseif inst["B"] == 1 then
 			output = 8
 		end
-	elseif inst["magic"] == InstDecoder.IMM_H or inst["magic"] == InstDecoder.REG_H then
-        if inst["S"] == 0 then
+	elseif inst["magic"] == InstDecoder.IMM_H then
+        output = 16
+    elseif inst["magic"] == InstDecoder.REG_H then
+        if not (inst["S"] == 1 and inst["H"] == 0) then -- sh' = ldsb
 		    output = 16
         else
             output = 8
@@ -209,54 +208,25 @@ end
 
 --[[
 	Gets the offset of an LDR/STR instruction
-	This must be executed when the ARM CPU is actually at pc.
+	This must be executed when the ARM CPU is actually right before pc.
 	@param inst A table representing the decoded instruction
 	@return the offset in the intruction if present
 ]]
-function getOffset(inst, pc)
+function getOffset(inst)
 	local output = -1
     if inst ~= nil then
-        -- Confirm Rb is not the same as Rd in order to correctly identify base
-        local output_base
+        -- The base might be what is provided in the module, but it might also not be
         local actual_base = memory.getregister("r"..inst["Rb"])
-        output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
-
---        if inst["Rb"] ~= inst["Rd"] then
---            local actual_base = memory.getregister("r"..inst["Rb"])
---            output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
---        else
---            -- OK, One pattern is an LDR Rx=offset before an access
---            local prevInst = InstDecoder.decode_PCRel(pc-2)
---            if prevInst ~= nil and prevInst.Rd == inst.Rd then
---                -- next word from (pc-2) + pc_offset is where the base is loaded from
---                local actual_base = ((pc-2) % 4 == 0) and memory.readlong(pc + 2 + prevInst.pc_offset) or
---                    memory.readlong(pc + prevInst.pc_offset)
---                if actual_base - base == 0xA2E85D17 then print(string.format("BEEEEEEEEEEEEEEEP pc=%08X", pc + prevInst.pc_offset)) end
---                output_base =  (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
---            else -- Unknown base address
---                output_base = "?+"
---            end
---        end
+        local output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
 
         -- In case the offset is an immediate
         if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
             output = output_base..string.format("0x%02X", inst["offset"]) -- string.format("0x%02X", offset)
         -- In case the offset is a register
         elseif inst["magic"] == InstDecoder.REG or inst["magic"] == InstDecoder.REG_H then
-            print("reg")
             output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
---            if inst["Ro"] ~= inst["Rd"] then
---                output = output_base..string.format("0x%02X",memory.getregister("r"..inst["Ro"]))
---            else
---                -- Try to check above instruction. One pattern is a mov Ro, imm.
---                local prevInst = InstDecoder.decode_MovImm(pc-2)
---                if prevInst ~= nil and prevInst.Rd == inst.Ro then
---                    output = output_base..string.format("0x%02X", prevInst.imm)
---                end
---            end
         end
     end
-
 	return output
 end
 
@@ -305,14 +275,6 @@ function manualLineRelease()
 		local newLine = true
 		printSameLine('', newLine)
 	end
-end
-
-function printState()
-    local state = ''
-    for i=0,15 do
-        state = state..string.format("%08X ", memory.getregister("r"..i))
-        if (i+1) % 4 == 0 then print(state); state = '' end
-    end
 end
 
 main()

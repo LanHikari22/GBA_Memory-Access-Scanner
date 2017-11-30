@@ -62,13 +62,8 @@ class MemoryAccessProtocol:
             type = int(re.search(r"\d+", memAccess[:memAccess.index("(")]).group())
             # Offset not identified, it cannot be used
             if "+" in memAccess:
-                if "?" in memAccess:
-                    base = -1
-                    offset = int(memAccess[memAccess.index("+") + 1:-1], 16)
-                    continue # TODO: Handle the case of an unknown base, or it will generate wrong struct output
-                else:
-                    base = int(memAccess[memAccess.index("(")+1:memAccess.index("+")], 16)
-                    offset = base + int(memAccess[memAccess.index("+") + 1:-1], 16)
+                base = int(memAccess[memAccess.index("(")+1:memAccess.index("+")], 16)
+                offset = base + int(memAccess[memAccess.index("+") + 1:-1], 16)
             else:
                 base = 0
                 offset = int(memAccess[memAccess.index("(")+1:-1], 16)

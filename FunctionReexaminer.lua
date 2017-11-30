@@ -24,16 +24,16 @@ FuncRxm.readyTable = {} -- Accesses that have been processed already! The Memory
 FuncRxm.registerForReexamination = function(pc, funcAddr, utype_str, offset_str)
     -- print
     local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-            if printToScreen then
-                vba.message(msg)
-            end
-            -- print everytime there are entriesPerLine entries in the line
-            local endline = true
-            if #detectedEntries % entriesPerLine == 0 then
-                printSameLine(msg..", ", endline)
-            else
-                printSameLine(msg..", ", not endline)
-            end
+    if printToScreen then
+        vba.message(msg)
+    end
+    -- print everytime there are entriesPerLine entries in the line
+    local endline = true
+    if #detectedEntries % entriesPerLine == 0 then
+        printSameLine(msg..", ", endline)
+    else
+        printSameLine(msg..", ", not endline)
+    end
 
 
 --    if string.find(funcAddr, "?") ~= nil then
