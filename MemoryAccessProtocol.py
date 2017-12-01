@@ -135,14 +135,17 @@ class MemoryAccessProtocol:
         print('\n}%s;' % self.name)
 
     def output_functions(self):
+        # get all functions
         functions = []
         for entry in self._MAEntries:
             if entry.functionAddr not in functions:
                 functions.append(entry.functionAddr)
         functions = sorted(functions)
-        for function in functions:
-            print(function)
-        pass
+
+        for i in range(len(functions)):
+            print(functions[i] + " ", end='')
+            if (i+1) % 5 == 0:
+                print()
 
 
 if __name__ == '__main__':

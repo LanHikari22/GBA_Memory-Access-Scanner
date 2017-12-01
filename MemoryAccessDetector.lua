@@ -2,11 +2,11 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x02001B80
+base = 0x0200A480
 -- The size of the memory block (ex. 0x22)
-size = 0x80
+size = 0x3C
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_02001B80"
+name = "s_0200A480"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
