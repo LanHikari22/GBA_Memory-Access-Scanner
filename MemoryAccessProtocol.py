@@ -28,7 +28,7 @@ class MemoryAccessEntry:
 
 class MemoryAccessProtocol:
     _MAEntries: list  # Memory Acesss Entries
-    _SMEntries: list  # Struct Member Entries
+    struct: StructPadder.Structure  # Struct Member Entries
     name: str
     size: int
 
@@ -42,7 +42,7 @@ class MemoryAccessProtocol:
                 self.size = int(arg[5:], 16)
         # instantiate entries
         self._MAEntries = []
-        self._SMEntries = []
+        self.struct = StructPadder.Structure(name=self.name, size=self.size)
 
 
     def parseline(self, line):
@@ -72,12 +72,11 @@ class MemoryAccessProtocol:
             self._MAEntries.append(entry)
 
     def generate_member_entries(self):
-        self._SMEntries = []
         for MAEntry in self._MAEntries:
             if MAEntry.offset == -1: continue # cannot imply anything on structure members with these...
             SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
-                                                location= MAEntry.offset, otherContent='')
-            self._SMEntries.append(SMEntry)
+                                                location= MAEntry.offset, otherContent='', structSize=None)
+            self.struct.members.append(SMEntry)
         # All duplicated of the same type are removed
         self.remove_duplicates()
         # there could be duplicates... with different types... mark them
@@ -85,7 +84,7 @@ class MemoryAccessProtocol:
         # Remove all CONFLICT marked duplicates except for the one with the lowest size
         self.remove_loc_duplicates()
         # Now to pad. Things will go wrong if there are location duplicates.
-        StructPadder.pad(self._SMEntries, self.size)
+        self.struct.pad()
 
     def no_SMEntry_duplicate_in(self, newSMEntries, SMEntry):
         output = True
@@ -96,43 +95,41 @@ class MemoryAccessProtocol:
 
     def remove_duplicates(self):
         # first, sort by location and by type...
-        self._SMEntries = sorted(self._SMEntries, key= lambda x: (x.location, x.size), reverse=False)
+        self.struct.members = sorted(self.struct.members, key= lambda x: (x.location, x.size), reverse=False)
         # remove duplicates base on type and location
-        newSMEntries = []
-        for entry in self._SMEntries:
+        newSMEntries = [] # structur member entries, without duplicates
+        for entry in self.struct.members:
             if self.no_SMEntry_duplicate_in(newSMEntries, entry):
                 newSMEntries.append(entry)
-        self._SMEntries = newSMEntries
+        self.struct.members = newSMEntries
 
 
 
     def mark_loc_duplicates(self):
         # first, sort by location and by type...
-        self._SMEntries = sorted(self._SMEntries, key= lambda x: (x.location, x.size), reverse=False)
+        self.struct.members = sorted(self.struct.members, key= lambda x: (x.location, x.size), reverse=False)
         # mark all location duplicates as CONFLICT
-        for i in range(len(self._SMEntries)):
-            if " CONFLICT" not in self._SMEntries[i].otherContent: # " CONFLICT" b/c spaces are included after loc=0x%X
-                for j in range(i+1, len(self._SMEntries)):
-                    if self._SMEntries[i].location == self._SMEntries[j].location:
-                        if self._SMEntries[i].otherContent == '': self._SMEntries[i].otherContent = " CONFLICT"
-                        self._SMEntries[j].otherContent = " CONFLICT"
-                        self._SMEntries[i].otherContent += " u" + str(self._SMEntries[j].size)
+        for i in range(len(self.struct.members)):
+            if " CONFLICT" not in self.struct.members[i].otherContent: # " CONFLICT" b/c spaces are included after loc=0x%X
+                for j in range(i+1, len(self.struct.members)):
+                    if self.struct.members[i].location == self.struct.members[j].location:
+                        if self.struct.members[i].otherContent == '': self.struct.members[i].otherContent = " CONFLICT"
+                        self.struct.members[j].otherContent = " CONFLICT"
+                        self.struct.members[i].otherContent += " u" + str(self.struct.members[j].size)
 
     def remove_loc_duplicates(self):
         # This should only be called after marking, so sorting is guaranteed
         # The lowest CONFLICT has been marked with all the higher ones. " CONFLICT u16 u32" for example.
         # The higher ones were only marked with CONFLICT and could cause padding errors: remove them.
         newSMEntries = []
-        for i in range(len(self._SMEntries)):
-            if self._SMEntries[i].otherContent != " CONFLICT":
-                newSMEntries.append(self._SMEntries[i])
-        self._SMEntries = newSMEntries
+        for i in range(len(self.struct.members)):
+            if self.struct.members[i].otherContent != " CONFLICT":
+                newSMEntries.append(self.struct.members[i])
+        self.struct.members = newSMEntries
 
     def output_struct_template(self):
-        print('typedef struct{')
-        maxLen = len('uint32_t unk_FFF     ')
-        StructPadder.output(self._SMEntries,maxLen,self.size)
-        print('\n}%s;' % self.name)
+        self.struct.maxLen = len('uint32_t unk_FFF     ')
+        print(self.struct.toStr())
 
     def output_functions(self):
         # get all functions

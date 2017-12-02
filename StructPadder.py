@@ -2,6 +2,8 @@
 # Author: Lan
 # Description: This module's purpose is to pad incomplete structures so that they are usable. It also sorts the
 # structure's members into correct order by consequence.
+# Refer to "__main__" if using this from the commandline.
+# If using this in another program, make use of the Structure class!
 ##
 import re
 POINTER_SIZE = 32 # size of a pointer in ARM7TDMI
@@ -26,15 +28,117 @@ class StructMember:
     # @param name The name of the member. If it contains *, the member is regarded as a pointer, like _type.
     # @param location
     ##
-    def __init__(self, _type: str, name: str, location: int, otherContent: str):
+    def __init__(self, _type: str, name: str, location: int, otherContent: str, structSize=None):
         self.type = _type
-        if('*' in name or '*' in _type):
-            self.size = POINTER_SIZE
+        # if _size is not None, that means this is a structure, and you can't figure out its size from context.
+        if not structSize:
+            if('*' in name or '*' in _type):
+                self.size = POINTER_SIZE
+            else:
+                self.size = int(re.search(r"\d+", _type).group()) # finding size in uint<size>_t
         else:
-            self.size = int(re.search(r"\d+", _type).group()) # finding size in uint<size>_t
+            self.size = structSize
         self.name = name
         self.location = location
         self.otherContent = otherContent
+
+##
+# This class encapsulates the act of creating, adding to, parsing, and padding structures.
+# The structure may also be outputted as a string
+##
+class Structure:
+    name: str  # Name of the structure
+    members: list  # List of StructMember objects
+    size: int  # Maximum size of structure in bytes
+    maxLen: int  # the maximum length of a line in the struct. Used for tabbing.
+
+    ##
+    # Either provide the name and size of the structure, or file that has the structure in it for parsing.
+    # Provide the name and size for manual creation of the structure.
+    # @param name       name of the structure, ignored if structFile != None
+    # @param size       size of the structure, ignored if structFile != None
+    # @param structFile file to parse to obtain structure, ignored if name and size are not None
+    ##
+    def __init__(self, name=None, size=None, structFile=None):
+        self.maxLen = 0
+        if name != None and size != None and structFile == None:
+            self.name = name
+            self.size = size
+            self.members = []
+        if name == None and size == None and structFile != None:
+            line = '\0'
+            self.members = []
+            while line != '':
+                line = structFile.readline()
+                tempStructSize, self.maxLen = handleLineParsing(self.members, line, self.maxLen)
+                if tempStructSize != 0:
+                    self.size = tempStructSize
+                if "}" in line:
+                    self.name = ''.join(list(filter(None, re.split("[ \t};]", line))))
+            self.members = sorted(self.members, key=compareLocations, reverse=False)
+            pass
+
+    ##
+    # Insers pads into the Structure's members so that its locations are consistent. This makes the structure usable.
+    # The amount of padding is determined by three things: The current member's location and size, and the next member's
+    # location. If no next entry exists, it uses the structSize as the maximum "next location" for the pad.
+    ##
+    def pad(self):
+        if len(self.members) < 1:
+            print("There are no entries to pad.")
+            return
+        i = 0
+        while i < len(self.members):
+            # ignore if the entry is a pad.
+            if self.members[i].name[0:3] == "pad":
+                # if it's the last entry, just leave
+                if i == len(self.members) - 1:
+                    break
+                # ignore this newly inserted entry!
+                i += 1
+                continue
+            # compute pad amount
+            curr = self.members[i]
+            if i != len(self.members) - 1:
+                next = self.members[i + 1]
+                padAmount = next.location - (curr.location + curr.size // 8)
+            else:
+                padAmount = (self.size) - (curr.location + curr.size // 8)
+                if self.size == 0: padAmount = 0
+            # add a pad if needed
+            if padAmount != 0:
+                entry = StructMember(_type="uint8_t",
+                                     name="pad_%X[0x%X];" % (curr.location + curr.size // 8, padAmount),
+                                     location=(curr.location + curr.size // 8), otherContent='', structSize=None)
+                self.members.insert(i + 1, entry)
+            # advance!
+            i += 1
+
+    ##
+    # Gives the whole structure as it would be formatted in C in a string format
+    ##
+    def toStr(self):
+        output = "typedef struct{\n"
+        for entry in self.members:
+            s = ""
+            locStr = "// loc=0x%X%s" % (entry.location, entry.otherContent)
+            # if it's a pad, tab twice... it looks pretty!
+            if entry.name[0:3] == "pad":
+                locStr = ''  # don't show the location for pads. // loc=<>. It's pretty obvious
+                s += "\t\t"
+            else:
+                s += "\t"
+            # format entry, with some smart tabbing and stuff
+            s += "%s %s " % (entry.type, entry.name)
+            s += " " * ((self.maxLen) - len(s)) + locStr
+            # output entry
+            output += s + "\n"
+        # output size
+        if self.size != 0:
+            output += "\t// size=0x%X\n" % self.size
+        output += "}%s;" % self.name
+        return output
+
 
 ##
 # This finds out the whether a psssed maxLen, or the length of the line until '//' is greater.
@@ -70,11 +174,19 @@ def parse(line: str):
         structSize = int(args[1][5:], 16)
     # This may be an entry, or it may be a line that is not related. We also completely ignore pads.
     if len(args) >= 4 and (args[1][0:3] != "pad") and (args[3][0:4] == "loc="):
-        valid = True
-        # determine other content after args[3]
-        extrContIndex = line.index(args[3]) + len(args[3])
-        # construct entry. If there's extra text, there's a new line. Don't include that.
-        entry = StructMember(args[0], args[1], int(args[3][4:], 16), line[extrContIndex:-1])
+        # if this entry is a structure member, its size must be specified
+        if len(args) >= 5 and len(args[4]) >= 9 and args[4][0:5] == "size=":
+            # determine other content after argsp[4]
+            extrContIndex = line.index(args[3]) + len(args[3])
+            # construct entry. If there's extra test, there's a new line. Don't include that.
+            entry = StructMember(_type=args[0], name=args[1], location=int(args[3][4:], 16),
+                                 otherContent=line[extrContIndex:-1], structSize=int(args[4][5:], 16))
+        else: # this is a primitive or a pointer entry
+            # determine other content after args[3]
+            extrContIndex = line.index(args[3]) + len(args[3])
+            # construct entry. If there's extra text, there's a new line. Don't include that.
+            entry = StructMember(_type=args[0], name=args[1], location=int(args[3][4:], 16),
+                                 otherContent=line[extrContIndex:-1], structSize=None)
 
     return [entry, structSize]
 
@@ -83,41 +195,6 @@ def parse(line: str):
 ##
 def compareLocations(entry):
     return entry.location
-
-##
-# This inserts pads into the entries list so that its locations are consistent. This makes the structure usable.
-# The amount of padding is determined by three things: The current entry's location and size, and the next entry's
-# location. If no next entry exists, it uses the structSize as the maximum "next location" for the pad.
-##
-def pad(entries, structSize):
-    if len(entries) < 1:
-        print("There are no entries to pad.")
-        return
-    i = 0
-    while i < len(entries):
-        # ignore if the entry is a pad.
-        if entries[i].name[0:3] == "pad":
-            # if it's the last entry, just leave
-            if i == len(entries) - 1:
-                break
-            # ignore this newly inserted entry!
-            i += 1
-            continue
-        # compute pad amount
-        curr = entries[i]
-        if i != len(entries) - 1:
-            next = entries[i+1]
-            padAmount = next.location - (curr.location + curr.size//8)
-        else:
-            padAmount = (structSize) - (curr.location + curr.size//8)
-            if structSize == 0: padAmount = 0
-        # add a pad if needed
-        if padAmount != 0:
-            entry = StructMember(_type="uint8_t", name="pad_%X[0x%X];" % (curr.location + curr.size // 8, padAmount),
-                                 location=(curr.location + curr.size//8), otherContent = '')
-            entries.insert(i+1, entry)
-        # advance!
-        i += 1
 
 ##
 # Handles the parsing of an entry line or a line containing size. Other unrelated lines are ignored
@@ -137,29 +214,6 @@ def handleLineParsing(entries, line, maxLen):
 
 
 ##
-# Outputs the given entries, and the struct size in the end in a fashionable fashion.
-##
-def output(entries, maxLen, structSize):
-    for entry in entries:
-        s = ""
-        # if it's a pad, tab twice... it looks pretty!
-        if entry.name[0:3] == "pad":
-            s += "\t\t"
-        else:
-            s += "\t"
-        # format entry, with some smart tabbing and stuff
-        s += "%s %s " % (entry.type, entry.name)
-        s += " "*((maxLen) - len(s)) + "// loc=0x%X%s" % (entry.location, entry.otherContent)
-        # output entry
-        print(s)
-    # output size
-    if structSize != 0:
-        print("\t// size=0x%X" % structSize, end='')
-
-
-
-
-##
 # This program takes in member definitions for a structure, and applies pads as appropriate so that the structure
 # is usable. All previous pads are recompiled when this program is run on the input.
 # Let this program handle padding for you. The requirement is that the entries are defined like this:
@@ -170,16 +224,7 @@ def output(entries, maxLen, structSize):
 # POINTER_SIZE.
 ##
 if __name__ == "__main__":
-    inputFile = open("input", "r")
-    line = '\0'
-    structSize = 0
-    entries = []
-    maxLen = 0
-    while line != '':
-        line = inputFile.readline()
-        tempStructSize, maxLen = handleLineParsing(entries, line, maxLen)
-        if tempStructSize != 0:
-            structSize = tempStructSize
-    entries = sorted(entries,key=compareLocations, reverse=False)
-    pad(entries, structSize)
-    output(entries, maxLen, structSize)
+    struct = Structure(structFile=open("input", "r"))
+    struct.pad()
+    print(struct.toStr(), end='')
+    # pad(entries, structSize)
