@@ -74,7 +74,7 @@ class Structure:
                 if tempStructSize != 0:
                     self.size = tempStructSize
                 if "}" in line:
-                    self.name = ''.join(list(filter(None, re.split("[ \t};]", line))))
+                    self.name = ''.join(list(filter(None, re.split("[ \t\n};]", line))))
             self.members = sorted(self.members, key=compareLocations, reverse=False)
             pass
 
@@ -118,7 +118,7 @@ class Structure:
     # Gives the whole structure as it would be formatted in C in a string format
     ##
     def toStr(self):
-        output = "typedef struct{\n"
+        output = "typedef struct {\n"
         for entry in self.members:
             s = ""
             locStr = "// loc=0x%X%s" % (entry.location, entry.otherContent)
