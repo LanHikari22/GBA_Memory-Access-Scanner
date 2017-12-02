@@ -12,6 +12,9 @@ POINTER_SIZE = 32 # size of a pointer in ARM7TDMI
 # An entry represents one member in a C structure. One entry may look like this:
 # "uint8_t someMember; // loc=0x04"
 # It must consist of a type, name, and a location in the comments. Those propreties are defined in this class.
+# If the StructMember is a structure itself, its size must be passed in structSize when initializing, as it cannot be
+# determined through type context. (if it's a pointer to a structure, it doesn't count as a structure.)
+# Note that the size of a structure MUST be a multiple of 8, as anything else isn't really possible in C
 ##
 class StructMember:
     size: int          # Size of entry member. 8 for uint8_t, 32 for uint32_t, 32 for BANANA*, etc.
