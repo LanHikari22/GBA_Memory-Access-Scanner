@@ -40,7 +40,7 @@ class StructMember:
             else:
                 self.size = int(re.search(r"\d+", _type).group()) # finding size in uint<size>_t
         else:
-            self.size = structSize
+            self.size = 8 * structSize # since size is measured in bits not bytes
         self.name = name
         self.location = location
         self.otherContent = otherContent
@@ -111,7 +111,7 @@ class Structure:
             # add a pad if needed
             if padAmount != 0:
                 entry = StructMember(_type="uint8_t",
-                                     name="pad_%X[0x%X];" % (curr.location + curr.size // 8, padAmount),
+                                     name="pad_%02X[0x%02X];" % (curr.location + curr.size // 8, padAmount),
                                      location=(curr.location + curr.size // 8), otherContent='', structSize=None)
                 self.members.insert(i + 1, entry)
             # advance!
@@ -120,7 +120,7 @@ class Structure:
     ##
     # Gives the whole structure as it would be formatted in C in a string format
     ##
-    def toStr(self):
+    def __str__(self):
         output = "typedef struct {\n"
         for entry in self.members:
             s = ""
@@ -229,5 +229,4 @@ def handleLineParsing(entries, line, maxLen):
 if __name__ == "__main__":
     struct = Structure(structFile=open("input", "r"))
     struct.pad()
-    print(struct.toStr(), end='')
-    # pad(entries, structSize)
+    print(struct, end='')

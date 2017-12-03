@@ -2,11 +2,11 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x0200A480
+base = 0x0200A270
 -- The size of the memory block (ex. 0x22)
-size = 0x3C
+size = 0x1C
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_0200A480"
+name = "s_0200A270"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
@@ -96,14 +96,14 @@ end
 function detectAccess()
 	local pc = memory.getregister("r15") - 4  -- -4 due to pipelining
 	local inst = InstDecoder.decode_LdrStr(pc)
+    if inst == nil then return end -- ARM LDR/STR instructions are not supported
+    local funcAddr = findFuncAddr(pc)
+    local utype = getType(inst)
+    local utype_str = (utype ~= -1) and "u"..utype or "?"
+    local offset_str = getOffset(inst)
 
-	if not FuncRxm.inArray(pc, detectedEntries) and inst ~= nil then
-
-        table.insert(detectedEntries, pc) -- when encountering this again, just ignore it.
-		local funcAddr = findFuncAddr(pc)
-		local utype = getType(inst)
-		local utype_str = (utype ~= -1) and "u"..utype or "?"
-		local offset_str = getOffset(inst)
+	if not isDetected(pc, offset_str, detectedEntries) then
+        table.insert(detectedEntries, {pc=pc, offset_str=offset_str}) -- when encountering this again, just ignore it.
 
         -- If the function address is unknown, set this up for reexamination
         if string.find(funcAddr, "?") then
@@ -275,6 +275,16 @@ function manualLineRelease()
 		local newLine = true
 		printSameLine('', newLine)
 	end
+end
+
+function isDetected(pc, offset_str, detectedEntries)
+    local wasThere = false
+        for k,v in ipairs(detectedEntries) do
+            if v.pc == pc and v.offset_str == offset_str then
+                wasThere = true
+            end
+        end
+        return wasThere
 end
 
 main()

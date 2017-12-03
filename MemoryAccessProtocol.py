@@ -129,20 +129,45 @@ class MemoryAccessProtocol:
 
     def output_struct_template(self):
         self.struct.maxLen = len('uint32_t unk_FFF     ')
-        print(self.struct.toStr())
+        print(self.struct, end='')
 
     def output_functions(self):
+        functions = self.get_functions()
+
+        for i in range(len(functions)):
+            print(functions[i] + " ", end='')
+            if (i+1) % 5 == 0:
+                print()
+
+    def get_functions(self):
         # get all functions
         functions = []
         for entry in self._MAEntries:
             if entry.functionAddr not in functions:
                 functions.append(entry.functionAddr)
         functions = sorted(functions)
+        return functions
 
-        for i in range(len(functions)):
-            print(functions[i] + " ", end='')
-            if (i+1) % 5 == 0:
-                print()
+    def output_hash(self):
+        output = '_'*self.struct.size
+        for member in self.struct.members:
+            # 8 bits per member, 0b1 -> size of 8, 0b10 -> size of 16 ...
+            memberByte = (member.size // 8) & 0xFF
+            if "pad" not in member.name:
+                output = output[:member.location] + chr(47 + memberByte) + output[member.location+1:]
+        print("#define HASH__" + self.struct.name + ' "' + output + '"')
+        # output = ''
+        # functions = self.get_functions()
+        # for func in functions:
+        #     if "?" in func:
+        #         iFunc = int(func[:-1], 16)
+        #     else:
+        #         iFunc = int(func, 16)
+        #     # now hash them, each function represents three characters
+        #     output +=  "%07X" % iFunc + "_"
+        # print("#define FHASH__" + self.struct.name + ' "' + output + '"')
+
+
 
 
 if __name__ == '__main__':
@@ -160,3 +185,5 @@ if __name__ == '__main__':
         memap.output_struct_template()
     elif sys.argv[2] == "functions":
         memap.output_functions()
+    elif sys.argv[2] == "hash":
+        memap.output_hash()
