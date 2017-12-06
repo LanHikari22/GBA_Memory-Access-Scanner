@@ -73,7 +73,6 @@ class MemoryAccessProtocol:
 
     def generate_member_entries(self):
         for MAEntry in self._MAEntries:
-            if MAEntry.offset == -1: continue # cannot imply anything on structure members with these...
             SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
                                                 location= MAEntry.offset, otherContent='', structSize=None)
             self.struct.members.append(SMEntry)

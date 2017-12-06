@@ -2,11 +2,11 @@ require "InstructionDecoder" -- InstDecoder
 require "FunctionReexaminer" -- FuncRxm
 -- Module Input ------------------------------------------------------------------
 -- Base register of block to Log writes/reads of (ex. 0x02000000)
-base = 0x0200A270
+base = 0x02005FDC
 -- The size of the memory block (ex. 0x22)
-size = 0x1C
+size = 0xce
 -- In case the block of memory (or struct) has a name. Useful for other programs
-name = "s_0200A270"
+name = "s_0202FA04"
 -- Switches to determine whether to detect on writes, reads, both, ...or neither
 detectWrites = true
 detectReads = true
@@ -19,9 +19,9 @@ entriesPerLine = 3
 printToScreen = true
 --[[ This is enabled so that meta information about the memblock is displayed at
      start. This could be useful for other software operating on the output of this
-	 program. ]] 
+	 program. ]]
 metaEnabled = true
---[[ if <lineReleaseTime> frames pass while the line is not empty, 
+--[[ if <lineReleaseTime> frames pass while the line is not empty,
 	 its contents are automatically printed. It may also be set to a relatively
 	 high value so that it may only occur in the end. It can be fast forwarded into,
 	 as well. Set to -1 to disable automatic line release.]]
@@ -34,7 +34,7 @@ lineReleaseKey = 'P'
 -- Globals ----------------------------------------------------------------------
 -- Memory accesses detected for write
 detectedEntries = {}
--- Used to print with no endline. For some reason, I can't do io.write(). 
+-- Used to print with no endline. For some reason, I can't do io.write().
 line = ''
 --[[ The timer decrements each frame the line is not empty. If it's added to,
 	 or if the line has been printed, it resets.]]
@@ -217,7 +217,10 @@ function getOffset(inst)
     if inst ~= nil then
         -- The base might be what is provided in the module, but it might also not be
         local actual_base = memory.getregister("r"..inst["Rb"])
-        local output_base = (actual_base - base == 0) and '' or string.format("0x%02X+", actual_base - base)
+		local delta_base = actual_base - base
+        local output_base = (delta_base == 0) and ''
+			or (delta_base > 0) and string.format("0x%02X+", actual_base - base)
+			or (delta_base < 0) and string.format("-0x%02X+", -delta_base)
 
         -- In case the offset is an immediate
         if inst["magic"] == InstDecoder.IMM or inst["magic"] == InstDecoder.IMM_H then
