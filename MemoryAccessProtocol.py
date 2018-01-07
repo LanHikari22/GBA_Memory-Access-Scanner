@@ -1,21 +1,43 @@
-##
-# Author: Lan
-# Description: The purpose of this module is to parse in the output of the VBA-rr lua script.
-# It can also generate a template structure from the parsed information, and pads it using the StructPadder module
-# so that it's a programmatically usable structure template.
-##
+"""
+Author: Lan
+Description: The purpose of this module is to parse in the output of the VBA-rr
+MemoryAccessDeetector lua script. It then may construct a struct out of it, report the functions detected, or
+report a hash representing the accesses. The hash should be a unique representations of the memory block.
+Meaning, if a different but functionally similar memory block is scanned, the hash should theoretically be
+very similar.
+
+heck __main__ for format information.
+
+"""
 import sys
 import re
 import StructPadder
 
 
+
 class MemoryAccessEntry:
+    """
+    This class represnts one detected entry in the form of <addr>[?] u<size>([<base>+]<off>)
+    All of the fields would be present in the object. This is the core element of the Memory access parser.
+    Those entries are processed to generate structures and other useful output.
+
+    """
     functionAddr: str
     accessAddr: int
     type: int
     base: int
     offset: int
+
+
     def __init__(self, functionAddr, accessAddr, _type, base, offset):
+        """
+        Initiates the object with the specified data. This is meant to be used strictly as a structure.
+        :param functionAddr: The address of the function, it is a string because it may contain a '?' when unsure.
+        :param accessAddr: The access address. This is always concrete. It is the very location of the LDR/STR inst.
+        :param _type: The type, or the size of the access. was it an LDRB, LDRSH, or an STR?
+        :param base: The detected access may be offset from a different base than the specified base address.
+        :param offset: The offset detected in the the entry.
+        """
         if type(functionAddr) is not str or type(accessAddr) is not int or \
                         type(_type) is not int and type(offset) is not int:
             raise(Exception("Invalid inputs to MemoryAccessEntry"))
@@ -27,12 +49,22 @@ class MemoryAccessEntry:
 
 
 class MemoryAccessProtocol:
+    """
+    This is the module class. It represents the features this script could provide to other scripts.
+    It is capable of parsing a file that contains the output of the MemoryAccessDetector lua module, and processing it
+    to output various useful things, such as structures or memory block hashes.
+    """
+
     _MAEntries: list  # Memory Acesss Entries
     struct: StructPadder.Structure  # Struct Member Entries
     name: str
     size: int
 
     def __init__(self, metaLine):
+        """
+
+        :param metaLine:
+        """
         # parse relevent meta information
         args = list(filter(None, re.split("[ \t,]", metaLine)))
         for arg in args:
@@ -73,8 +105,13 @@ class MemoryAccessProtocol:
 
     def generate_member_entries(self):
         for MAEntry in self._MAEntries:
-            SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
+            if StructPadder.int_types_long:
+                SMEntry = StructPadder.StructMember(_type="uint%d_t" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
                                                 location= MAEntry.offset, otherContent='', structSize=None)
+            else:
+                SMEntry = StructPadder.StructMember(_type="u%d" % MAEntry.type, name= "unk_%02X;" % MAEntry.offset,
+                                                location= MAEntry.offset, otherContent='', structSize=None)
+
             self.struct.members.append(SMEntry)
         # All duplicated of the same type are removed
         self.remove_duplicates()
@@ -127,7 +164,10 @@ class MemoryAccessProtocol:
         self.struct.members = newSMEntries
 
     def output_struct_template(self):
-        self.struct.maxLen = len('uint32_t unk_FFF     ')
+        if StructPadder.int_types_long:
+            self.struct.maxLen = len('uint32_t unk_FFF     ')
+        else:
+            self.struct.maxLen = len('u32 unk_FFF     ')
         print(self.struct, end='')
 
     def output_functions(self):

@@ -6,7 +6,26 @@
 # If using this in another program, make use of the Structure class!
 ##
 import re
-POINTER_SIZE = 32 # size of a pointer in ARM7TDMI
+
+POINTER_SIZE = 32  # (bits) size of a pointer in ARM7TDMI
+
+# setting that specified whether the structure uses signed/unsigned primitives as u8/i32 or uint8_t/int32_t
+int_types_long = False
+
+##
+# This dictionary contains entries with predetermined sizes specified to the structPadder.
+# This includes primitive types, structs, and any defined type with a known size.
+# The sizes are specified in bytes.
+##
+known_types = {
+    # primitives
+    'bool': 1, 'int': 4, 'short': 2, 'long': 4, 'char': 1,
+    'uint32_t': 4, 'uint16_t': 2, 'uint8_t': 1,
+    'int32_t': 4, 'int16_t': 2, 'int8_t': 1,
+    'u32': 4, 'u16': 2, 'u8': 1, 'i32': 4, 'i16': 2, 'i8': 1,
+    # custom types (modify this as needed)
+    'bool_t': 1,
+}
 
 ##
 # An entry represents one member in a C structure. One entry may look like this:
@@ -38,7 +57,10 @@ class StructMember:
             if('*' in name or '*' in _type):
                 self.size = POINTER_SIZE
             else:
-                self.size = int(re.search(r"\d+", _type).group()) # finding size in uint<size>_t
+                if _type in known_types:
+                    self.size = 8 * known_types[_type] # bytes -> bits
+                else: # invalid state, size cannot be determined
+                    raise Exception("Cannot determine size for specified type")
         else:
             self.size = 8 * structSize # since size is measured in bits not bytes
         self.name = name
@@ -110,7 +132,9 @@ class Structure:
                 if self.size == 0: padAmount = 0
             # add a pad if needed
             if padAmount != 0:
-                entry = StructMember(_type="uint8_t",
+                if int_types_long: _type = "uint8_t"
+                else: _type = "u8"
+                entry = StructMember(_type=_type,
                                      name="pad_%02X[0x%02X];" % (curr.location + curr.size // 8, padAmount),
                                      location=(curr.location + curr.size // 8), otherContent='', structSize=None)
                 self.members.insert(i + 1, entry)

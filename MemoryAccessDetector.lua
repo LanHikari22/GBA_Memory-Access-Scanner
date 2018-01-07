@@ -112,19 +112,19 @@ function detectAccess()
 
         -- Normal case, both function address and offset were detected easily
         if string.find(funcAddr, "?") == nil then
-            local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
-            if printToScreen then
-                vba.message(msg)
-            end
-            -- print everytime there are entriesPerLine entries in the line
-            local endline = true
-            if #detectedEntries % entriesPerLine == 0 then
-                printSameLine(msg..", ", endline)
-            else
-                printSameLine(msg..", ", not endline)
-            end
-        end
-
+			if printToScreen then
+				local vbaMsg =  string.format("%s %s(%s)", funcAddr, utype_str, offset_str)
+				vba.message(vbaMsg)
+			end
+			local msg = string.format("%s::%08X %s(%s)", funcAddr, pc, utype_str, offset_str)
+			-- print everytime there are entriesPerLine entries in the line
+			local endline = true
+			if #detectedEntries % entriesPerLine == 0 then
+				printSameLine(msg..", ", endline)
+			else
+				printSameLine(msg..", ", not endline)
+			end
+				end
 	end
     -- vba.pause()
 end
